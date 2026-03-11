@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useScrollAnimations } from "../hooks/useScrollAnimations";
 import "./About.css";
 
@@ -47,6 +48,269 @@ const values = [
   },
 ];
 
+const reviews = [
+  {
+    name: "Rahul S.",
+    location: "Delhi",
+    rating: 5,
+    date: "Jan 2026",
+    product: "Himalayan Down Parka",
+    text: "Wore this on my Everest Base Camp trek. -15°C at night and I was perfectly warm. The quality is unreal — stitching, zips, everything is bomber. Worth every rupee.",
+    gradient: "linear-gradient(135deg, #1B4332, #0d2b1e)",
+  },
+  {
+    name: "Meera P.",
+    location: "Pune",
+    rating: 5,
+    date: "Feb 2026",
+    product: "Gore-Tex Alpine Shell",
+    text: "Got caught in a 3-hour downpour on Roopkund. Stayed completely dry. The packability is amazing too — fits in a fist. Best outdoor purchase I've made.",
+    gradient: "linear-gradient(135deg, #1e3a5f, #1e40af)",
+  },
+  {
+    name: "Karan T.",
+    location: "Bengaluru",
+    rating: 5,
+    date: "Dec 2025",
+    product: "Carbon Summit Poles",
+    text: "Lightweight but incredibly sturdy. Used them on a 14-day Zanskar trek. The lock mechanism never slipped once. SHIKHAR quality is next level.",
+    gradient: "linear-gradient(135deg, #374151, #1B4332)",
+  },
+  {
+    name: "Ananya R.",
+    location: "Mumbai",
+    rating: 4,
+    date: "Nov 2025",
+    product: "Summit Slim-Fit Pants",
+    text: "Super comfortable and the stretch is perfect for scrambling. The fit is great and they dry really fast. Knocked one star only because sizing runs slightly large.",
+    gradient: "linear-gradient(135deg, #3b1f5e, #1e1b4b)",
+  },
+  {
+    name: "Vikash M.",
+    location: "Manali",
+    rating: 5,
+    date: "Mar 2026",
+    product: "Merino Trek Socks",
+    text: "I've tried every trekking sock out there. These are miles ahead — no blisters after 12 hours on trail. The merino keeps feet warm but not sweaty. Ordering 5 more pairs.",
+    gradient: "linear-gradient(135deg, #065f46, #1B4332)",
+  },
+  {
+    name: "Divya K.",
+    location: "Jaipur",
+    rating: 5,
+    date: "Jan 2026",
+    product: "She-Summit Down Parka",
+    text: "Finally a down jacket designed for women that doesn't just look good but actually performs. Wore it on Kedarkantha. Warm, light, and I got so many compliments on the fit.",
+    gradient: "linear-gradient(135deg, #92400e, #744210)",
+  },
+];
+
+function StarRating({ count }) {
+  return (
+    <div className="star-rating">
+      {[1, 2, 3, 4, 5].map((s) => (
+        <svg
+          key={s}
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill={s <= count ? "currentColor" : "none"}
+          stroke="currentColor"
+          strokeWidth="1.5"
+          className={s <= count ? "star-filled" : "star-empty"}
+        >
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+        </svg>
+      ))}
+    </div>
+  );
+}
+
+const productOptions = [
+  "Hiking Pants",
+  "Down Jacket",
+  "Gore-Tex Shell",
+  "Buff / Neck Gaiter",
+  "Trekking Socks",
+  "T-Shirt",
+  "Goggles",
+  "Trekking Poles",
+  "Backpack",
+  "Sleeping Bag",
+  "Tent",
+  "Headlamp",
+  "Other",
+];
+
+function WriteReview({ onSubmit }) {
+  const [form, setForm] = useState({
+    name: "",
+    location: "",
+    product: "",
+    rating: 0,
+    text: "",
+  });
+  const [hover, setHover] = useState(0);
+  const [submitted, setSubmitted] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  const validate = () => {
+    const e = {};
+    if (!form.name.trim()) e.name = "Please enter your name.";
+    if (!form.rating) e.rating = "Please select a star rating.";
+    if (!form.product) e.product = "Please select a product.";
+    if (form.text.trim().length < 20)
+      e.text = "Review must be at least 20 characters.";
+    return e;
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const errs = validate();
+    if (Object.keys(errs).length) {
+      setErrors(errs);
+      return;
+    }
+    setErrors({});
+    onSubmit({
+      ...form,
+      date: "Mar 2026",
+      gradient: "linear-gradient(135deg, #374151, #1B4332)",
+    });
+    setSubmitted(true);
+  };
+
+  if (submitted) {
+    return (
+      <div className="write-review-success">
+        <svg
+          width="40"
+          height="40"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="9 12 11 14 15 10" />
+        </svg>
+        <h3>Thanks for your review!</h3>
+        <p>Your experience helps other adventurers gear up right.</p>
+      </div>
+    );
+  }
+
+  return (
+    <form className="write-review-form" onSubmit={handleSubmit} noValidate>
+      <h3 className="write-review-title">
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path d="M12 20h9" />
+          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+        </svg>
+        Share Your Experience
+      </h3>
+
+      <div className="write-review-row">
+        <div className="write-review-field">
+          <label>Your Name *</label>
+          <input
+            type="text"
+            placeholder="e.g. Aryan K."
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+          {errors.name && <span className="field-error">{errors.name}</span>}
+        </div>
+        <div className="write-review-field">
+          <label>City / Location</label>
+          <input
+            type="text"
+            placeholder="e.g. Dehradun"
+            value={form.location}
+            onChange={(e) => setForm({ ...form, location: e.target.value })}
+          />
+        </div>
+      </div>
+
+      <div className="write-review-row">
+        <div className="write-review-field">
+          <label>Product Reviewed *</label>
+          <select
+            value={form.product}
+            onChange={(e) => setForm({ ...form, product: e.target.value })}
+          >
+            <option value="">Select a product…</option>
+            {productOptions.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+          {errors.product && (
+            <span className="field-error">{errors.product}</span>
+          )}
+        </div>
+        <div className="write-review-field">
+          <label>Your Rating *</label>
+          <div className="star-picker">
+            {[1, 2, 3, 4, 5].map((s) => (
+              <svg
+                key={s}
+                width="28"
+                height="28"
+                viewBox="0 0 24 24"
+                fill={(hover || form.rating) >= s ? "currentColor" : "none"}
+                stroke="currentColor"
+                strokeWidth="1.5"
+                className={
+                  (hover || form.rating) >= s
+                    ? "star-filled star-pick"
+                    : "star-empty star-pick"
+                }
+                onMouseEnter={() => setHover(s)}
+                onMouseLeave={() => setHover(0)}
+                onClick={() => setForm({ ...form, rating: s })}
+                style={{ cursor: "pointer" }}
+              >
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>
+            ))}
+          </div>
+          {errors.rating && (
+            <span className="field-error">{errors.rating}</span>
+          )}
+        </div>
+      </div>
+
+      <div className="write-review-field">
+        <label>
+          Your Review *{" "}
+          <span className="char-count">{form.text.length} / 500</span>
+        </label>
+        <textarea
+          rows="4"
+          placeholder="Tell us about your experience on the trail with this product…"
+          maxLength={500}
+          value={form.text}
+          onChange={(e) => setForm({ ...form, text: e.target.value })}
+        />
+        {errors.text && <span className="field-error">{errors.text}</span>}
+      </div>
+
+      <button type="submit" className="btn btn-amber write-review-btn">
+        Post Review
+      </button>
+    </form>
+  );
+}
+
 const milestones = [
   { year: "2011", event: "Founded in Manali, Himachal Pradesh" },
   { year: "2013", event: "First summit: Stok Kangri expedition kit" },
@@ -59,6 +323,7 @@ const milestones = [
 
 export default function About() {
   useScrollAnimations();
+  const [userReviews, setUserReviews] = useState([]);
 
   return (
     <main className="about-page">
@@ -87,6 +352,7 @@ export default function About() {
         </div>
       </section>
 
+       
       {/* ====== BRAND STORY ====== */}
       <section className="about-story section-pad">
         <div className="container">
@@ -350,6 +616,158 @@ export default function About() {
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* ====== REVIEWS ====== */}
+      <section className="about-reviews section-pad">
+        <div className="container">
+          <div className="section-header reveal">
+            <span className="eyebrow">Community Voices</span>
+            <h2>What Our Explorers Say</h2>
+            <p>Real experiences from the trails, passes, and summits.</p>
+          </div>
+          <div className="reviews-grid">
+            {[...reviews, ...userReviews].map((r, i) => (
+              <div
+                key={i}
+                className="review-card reveal"
+                style={{
+                  "--card-gradient": r.gradient,
+                  animationDelay: `${i * 0.08}s`,
+                }}
+              >
+                <div className="review-card__top">
+                  <div
+                    className="review-avatar"
+                    style={{ background: r.gradient }}
+                  >
+                    {r.name.charAt(0)}
+                  </div>
+                  <div>
+                    <p className="review-name">{r.name}</p>
+                    <p className="review-meta">
+                      {r.location} &middot; {r.date}
+                    </p>
+                  </div>
+                </div>
+                <StarRating count={r.rating} />
+                <p className="review-product">
+                  Purchased: <strong>{r.product}</strong>
+                </p>
+                <p className="review-text">&ldquo;{r.text}&rdquo;</p>
+              </div>
+            ))}
+          </div>
+
+          <WriteReview
+            onSubmit={(r) => setUserReviews((prev) => [r, ...prev])}
+          />
+        </div>
+      </section>
+
+      {/* ====== WARRANTY POLICY ====== */}
+      <section className="about-warranty section-pad">
+        <div className="container">
+          <div className="section-header reveal" style={{ color: "#fff" }}>
+            <span className="eyebrow" style={{ color: "var(--color-amber)" }}>
+              Our Promise
+            </span>
+            <h2 style={{ color: "#fff" }}>Warranty Policy</h2>
+            <p style={{ color: "rgba(255,255,255,0.75)" }}>
+              We stand behind every product we make. Here's exactly what's
+              covered.
+            </p>
+          </div>
+          <div className="warranty-grid reveal">
+            <div className="warranty-card">
+              <div className="warranty-icon">
+                <svg
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                >
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+              </div>
+              <h3>2-Year Coverage</h3>
+              <p>
+                We cover all SHIKHAR products for <strong>2 years</strong> from
+                the date of purchase — no ifs, no buts.
+              </p>
+            </div>
+            <div className="warranty-card">
+              <div className="warranty-icon">
+                <svg
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </div>
+              <h3>What's Covered</h3>
+              <p>
+                Manufacturing defects, faulty stitching, broken zips, defective
+                hardware, delamination, and waterproofing failure under normal
+                use.
+              </p>
+            </div>
+            <div className="warranty-card">
+              <div className="warranty-icon">
+                <svg
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+              </div>
+              <h3>What's Not Covered</h3>
+              <p>
+                Normal wear and tear, accidental damage, misuse, improper
+                washing, modifications, or loss. Wear happens — that's
+                adventuring.
+              </p>
+            </div>
+            <div className="warranty-card">
+              <div className="warranty-icon">
+                <svg
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                >
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                  <polyline points="22,6 12,13 2,6" />
+                </svg>
+              </div>
+              <h3>How to Claim</h3>
+              <p>
+                Email us at <strong>hello@shikharoutdoor.com</strong> with your
+                order number and a photo of the issue. We'll get back within 48
+                hours.
+              </p>
+            </div>
+          </div>
+          <p className="warranty-note reveal">
+            Warranty is valid with proof of purchase from SHIKHAR or an
+            authorised retailer. In cases of a valid claim, we'll repair,
+            replace, or refund — your choice.
+          </p>
         </div>
       </section>
     </main>

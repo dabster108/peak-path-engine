@@ -4,8 +4,47 @@ import { allSearchItems, trendingSearches } from "../data/searchData";
 import "./Navbar.css";
 
 const navLinks = [
-  { label: "Men's", to: "/mens" },
-  { label: "Women's", to: "/womens" },
+  {
+    label: "Men's",
+    to: "/mens",
+    dropdown: [
+      { label: "Hiking Pants", sub: "Trail & summit pants" },
+      { label: "Down Jackets", sub: "Insulated & packable" },
+      { label: "Goretex", sub: "Waterproof shells" },
+      { label: "Buffs", sub: "Neck gaiters & balaclavas" },
+      { label: "Socks", sub: "Merino & cushioned" },
+      { label: "T-Shirts", sub: "DryFit & merino base" },
+      { label: "Goggles", sub: "UV400 protection" },
+      { label: "Trekking Poles", sub: "Carbon & aluminium" },
+    ],
+  },
+  {
+    label: "Women's",
+    to: "/womens",
+    dropdown: [
+      { label: "Hiking Pants", sub: "Trail & summit pants" },
+      { label: "Down Jackets", sub: "Insulated & packable" },
+      { label: "Goretex", sub: "Waterproof shells" },
+      { label: "Buffs", sub: "Neck gaiters & warmers" },
+      { label: "Socks", sub: "Merino & coolmax" },
+      { label: "T-Shirts", sub: "DryFit & merino base" },
+      { label: "Goggles", sub: "UV400 protection" },
+      { label: "Trekking Poles", sub: "Ultralight carbon" },
+    ],
+  },
+  {
+    label: "Gore-Tex",
+    to: "/goretex",
+    dropdown: [
+      { label: "Men's Jackets", sub: "Hardshells & anoraks" },
+      { label: "Women's Jackets", sub: "Shells & storm wear" },
+      { label: "Pants", sub: "Waterproof trail pants" },
+      { label: "Rain Sets", sub: "Jacket + pants combos" },
+      { label: "Raincoats", sub: "Ultralight packables" },
+      { label: "Shoe Covers", sub: "Gaiters & overboots" },
+      { label: "Socks", sub: "Waterproof socks" },
+    ],
+  },
   { label: "Footwear", to: "/footwear" },
   {
     label: "Backpacks",
