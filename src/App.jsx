@@ -11,6 +11,7 @@ import Backpacks from "./pages/Backpacks";
 import Equipment from "./pages/Equipment";
 import Goretex from "./pages/Goretex";
 import Terms from "./pages/Terms";
+import Bottles from "./pages/Bottles";
 import "./App.css";
 
 function ScrollToTop() {
@@ -100,6 +101,7 @@ function AppInner() {
         <Route path="/backpacks" element={<Backpacks />} />
         <Route path="/equipment" element={<Equipment />} />{" "}
         <Route path="/goretex" element={<Goretex />} />{" "}
+        <Route path="/bottles" element={<Bottles />} />
         <Route path="/about" element={<About />} />
         <Route path="/terms" element={<Terms />} />
       </Routes>

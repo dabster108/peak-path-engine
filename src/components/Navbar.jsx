@@ -45,7 +45,17 @@ const navLinks = [
       { label: "Socks", sub: "Waterproof socks" },
     ],
   },
-  { label: "Footwear", to: "/footwear" },
+  {
+    label: "Footwear",
+    to: "/footwear",
+    dropdown: [
+      { label: "Trail Running Shoes", sub: "Grip & cushion" },
+      { label: "Trekking Boots", sub: "Ankle support & waterproof" },
+      { label: "Summit Boots", sub: "High-altitude crampon-ready" },
+      { label: "Camp Sandals", sub: "Post-hike recovery" },
+      { label: "Gaiters", sub: "Snow & mud protection" },
+    ],
+  },
   {
     label: "Backpacks",
     to: "/backpacks",
@@ -54,6 +64,17 @@ const navLinks = [
       { label: "Trekking Packs", sub: "35–50L multi-day" },
       { label: "Summit Packs", sub: "55–75L expedition" },
       { label: "Duffles", sub: "Base camp carry" },
+    ],
+  },
+  {
+    label: "Bottles",
+    to: "/bottles",
+    dropdown: [
+      { label: "Hydra Pack", sub: "Hands-free hydration bladders" },
+      { label: "Filter Bottles", sub: "Clean water anywhere" },
+      { label: "Water Bottles 100ml", sub: "Ultralight summit carry" },
+      { label: "Water Bottles 500ml", sub: "Trail & everyday use" },
+      { label: "Flask & Thermos", sub: "Vacuum-insulated hot & cold" },
     ],
   },
   {
@@ -74,6 +95,7 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
+  const [mobileAccordion, setMobileAccordion] = useState(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [cartCount] = useState(0);
@@ -292,13 +314,62 @@ export default function Navbar() {
             </Link>
           </li>
           {navLinks.map((link) => (
-            <li key={link.to}>
-              <Link
-                to={link.to}
-                className={location.pathname === link.to ? "active" : ""}
-              >
-                {link.label}
-              </Link>
+            <li key={link.to} className={link.dropdown ? "has-accordion" : ""}>
+              {link.dropdown ? (
+                <>
+                  <button
+                    className={`mobile-accordion-btn${mobileAccordion === link.to ? " open" : ""}${location.pathname === link.to ? " active" : ""}`}
+                    onClick={() =>
+                      setMobileAccordion(
+                        mobileAccordion === link.to ? null : link.to,
+                      )
+                    }
+                  >
+                    {link.label}
+                    <svg
+                      className={`accordion-chevron${mobileAccordion === link.to ? " open" : ""}`}
+                      width="10"
+                      height="6"
+                      viewBox="0 0 10 6"
+                      fill="none"
+                    >
+                      <path
+                        d="M1 1l4 4 4-4"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                  {mobileAccordion === link.to && (
+                    <ul className="mobile-accordion__items">
+                      {link.dropdown.map((item) => (
+                        <li key={item.label}>
+                          <Link
+                            to={link.to}
+                            onClick={() => setMobileOpen(false)}
+                          >
+                            <span className="mobile-accordion__name">
+                              {item.label}
+                            </span>
+                            <span className="mobile-accordion__sub">
+                              {item.sub}
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              ) : (
+                <Link
+                  to={link.to}
+                  className={location.pathname === link.to ? "active" : ""}
+                >
+                  {link.label}
+                </Link>
+              )}
             </li>
           ))}
         </ul>
