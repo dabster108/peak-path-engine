@@ -1,0 +1,127 @@
+.product-card {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  overflow: hidden;
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+  cursor: pointer;
+}
+.product-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.14);
+}
+
+.product-card__image-wrap {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 3/4;
+}
+
+.product-card__image {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+.product-card:hover .product-card__image {
+  transform: scale(1.07);
+}
+
+.mountain-silhouette {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+}
+
+.product-card__badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: var(--color-amber);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  z-index: 2;
+}
+
+.product-card__overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(17, 24, 39, 0.75) 0%,
+    rgba(17, 24, 39, 0) 60%
+  );
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 1.5rem;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+.product-card:hover .product-card__overlay {
+  opacity: 1;
+}
+
+.product-card__cta {
+  transform: translateY(12px);
+  transition:
+    transform 0.35s ease,
+    opacity 0.35s ease;
+  opacity: 0;
+  font-size: 0.75rem;
+  padding: 0.6rem 1.5rem;
+}
+.product-card:hover .product-card__cta {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.product-card__info {
+  padding: 1rem 1rem 1.25rem;
+}
+
+.product-card__category {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-amber);
+  margin-bottom: 0.3rem;
+}
+
+.product-card__name {
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-charcoal);
+  line-height: 1.2;
+  margin-bottom: 0.5rem;
+}
+
+.product-card__pricing {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.product-card__original {
+  font-size: 0.8rem;
+  color: var(--color-gray-500);
+  text-decoration: line-through;
+}
+
+.product-card__price {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-amber);
+}
