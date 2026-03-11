@@ -7,6 +7,8 @@ import Mens from "./pages/Mens";
 import Womens from "./pages/Womens";
 import Footwear from "./pages/Footwear";
 import About from "./pages/About";
+import Backpacks from "./pages/Backpacks";
+import Equipment from "./pages/Equipment";
 import "./App.css";
 
 function ScrollToTop() {
@@ -92,7 +94,9 @@ function AppInner() {
         <Route path="/" element={<Home />} />
         <Route path="/mens" element={<Mens />} />
         <Route path="/womens" element={<Womens />} />
-        <Route path="/footwear" element={<Footwear />} />
+        <Route path="/footwear" element={<Footwear />} />{" "}
+        <Route path="/backpacks" element={<Backpacks />} />
+        <Route path="/equipment" element={<Equipment />} />{" "}
         <Route path="/about" element={<About />} />
       </Routes>
       <Footer />

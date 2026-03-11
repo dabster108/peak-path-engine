@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import ProductCard from "../components/ProductCard";
+import ChatModal from "../components/ChatModal";
 import { useScrollAnimations } from "../hooks/useScrollAnimations";
 import "./Home.css";
 
@@ -146,6 +147,7 @@ function Counter({ end, suffix = "", prefix = "" }) {
 export default function Home() {
   useScrollAnimations();
   const heroRef = useRef(null);
+  const [chatOpen, setChatOpen] = useState(false);
 
   // Parallax on hero
   useEffect(() => {
@@ -537,6 +539,152 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* ====== CHAT WITH US ====== */}
+      <section className="home-chat-section">
+        <div className="container">
+          <div className="home-chat-inner reveal">
+            <div className="home-chat-text">
+              <span className="section-label">Gear Specialists</span>
+              <div className="heading-reveal">
+                <h2 className="section-heading heading-reveal-inner">
+                  Not Sure What You Need?
+                </h2>
+              </div>
+              <p>
+                Our mountain experts are here to help — from layering systems to
+                summit packs. Tell us your trail, and we&apos;ll build your kit.
+              </p>
+              <ul className="home-chat-features">
+                <li>
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  Personalised gear recommendations
+                </li>
+                <li>
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  Size & fit guidance
+                </li>
+                <li>
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  Bulk & expedition orders
+                </li>
+                <li>
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  Reply within 24 hours
+                </li>
+              </ul>
+              <button
+                className="btn btn-primary home-chat-btn"
+                onClick={() => setChatOpen(true)}
+              >
+                Chat With Us
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                >
+                  <path d="m22 2-7 20-4-9-9-4 20-7z" />
+                  <path d="M22 2 11 13" />
+                </svg>
+              </button>
+            </div>
+            <div
+              className="home-chat-visual reveal-scale"
+              style={{ transitionDelay: "0.15s" }}
+            >
+              <div className="chat-card-preview">
+                <div className="chat-card-header">
+                  <div className="chat-card-avatar">S</div>
+                  <div>
+                    <p className="chat-card-name">SHIKHAR Team</p>
+                    <span className="chat-card-status">● Online now</span>
+                  </div>
+                </div>
+                <div className="chat-card-bubbles">
+                  <div className="chat-bubble chat-bubble--in">
+                    Hi! I&apos;m planning an Everest Base Camp trek — what
+                    jacket do you recommend?
+                  </div>
+                  <div className="chat-bubble chat-bubble--out">
+                    Great choice! For EBC, we&apos;d recommend our Himalayan
+                    Down Parka paired with the Gore-Tex Alpine Shell. Want me to
+                    put together a full kit for you?
+                  </div>
+                  <div className="chat-bubble chat-bubble--in">
+                    Yes please! 🏔️
+                  </div>
+                </div>
+                <button
+                  className="chat-card-cta"
+                  onClick={() => setChatOpen(true)}
+                >
+                  Start Your Conversation →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <ChatModal isOpen={chatOpen} onClose={() => setChatOpen(false)} />
+
+      {/* Floating Chat Button */}
+      <button
+        className="floating-chat-btn"
+        onClick={() => setChatOpen(true)}
+        aria-label="Chat with us"
+      >
+        <svg
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+        <span>Chat</span>
+      </button>
     </main>
   );
 }

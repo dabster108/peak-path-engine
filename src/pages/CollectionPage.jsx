@@ -1,5 +1,6 @@
 import { useState } from "react";
 import ProductCard from "../components/ProductCard";
+import ChatModal from "../components/ChatModal";
 import { useScrollAnimations } from "../hooks/useScrollAnimations";
 import "./Collection.css";
 
@@ -23,6 +24,7 @@ export default function CollectionPage({
   const [activeFilter, setActiveFilter] = useState("All");
   const [activeSort, setActiveSort] = useState("Featured");
   const [showFilters, setShowFilters] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
 
   const filtered =
     activeFilter === "All"
@@ -106,11 +108,18 @@ export default function CollectionPage({
             <p>Use our expert size guide or chat with a gear specialist.</p>
             <div className="collection-cta-btns">
               <button className="btn btn-primary">Size Guide</button>
-              <button className="btn btn-outline">Chat With Us</button>
+              <button
+                className="btn btn-outline"
+                onClick={() => setChatOpen(true)}
+              >
+                Chat With Us
+              </button>
             </div>
           </div>
         </div>
       </section>
+
+      <ChatModal isOpen={chatOpen} onClose={() => setChatOpen(false)} />
     </main>
   );
 }
