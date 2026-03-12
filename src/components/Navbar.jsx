@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { allSearchItems, trendingSearches } from "../data/searchData";
+import { isAuthenticated, setAuth } from "../App";
 import "./Navbar.css";
 
 const navLinks = [
@@ -99,10 +100,28 @@ export default function Navbar() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [cartCount] = useState(0);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
   const searchInputRef = useRef(null);
   const isHome = location.pathname === "/";
+
+  // Close profile dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // Close profile dropdown on route change
+  useEffect(() => {
+    setProfileOpen(false);
+  }, [location]);
 
   // Derived search results
   const searchResults =
@@ -264,6 +283,132 @@ export default function Navbar() {
                 <path d="m21 21-4.35-4.35" />
               </svg>
             </button>
+            {/* Profile / Login icon */}
+            <div className="profile-menu-wrap" ref={profileRef}>
+              <button
+                className="navbar__icon-btn profile-icon-btn"
+                aria-label="Account"
+                onClick={() =>
+                  isAuthenticated()
+                    ? setProfileOpen((v) => !v)
+                    : navigate("/login")
+                }
+              >
+                {isAuthenticated() ? (
+                  <span className="profile-avatar">
+                    S
+                    <span className="profile-online-dot" />
+                  </span>
+                ) : (
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                )}
+              </button>
+
+              {/* Dropdown — only shown when logged in */}
+              {isAuthenticated() && (
+                <div
+                  className={`profile-dropdown${profileOpen ? " open" : ""}`}
+                >
+                  {/* Profile header */}
+                  <div className="profile-dropdown__header">
+                    <div className="profile-dropdown__avatar">S</div>
+                    <div className="profile-dropdown__info">
+                      <div className="profile-dropdown__name">Adventurer</div>
+                      <div className="profile-dropdown__email">
+                        shikhar@gmail.com
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="profile-dropdown__divider" />
+
+                  {/* Menu items */}
+                  <button
+                    className="profile-dropdown__item"
+                    onClick={() => {
+                      setProfileOpen(false);
+                    }}
+                  >
+                    <svg
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                    My Profile
+                  </button>
+
+                  <button
+                    className="profile-dropdown__item"
+                    onClick={() => {
+                      setProfileOpen(false);
+                    }}
+                  >
+                    <svg
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+                      <line x1="3" y1="6" x2="21" y2="6" />
+                      <path d="M16 10a4 4 0 0 1-8 0" />
+                    </svg>
+                    My Orders
+                  </button>
+
+                  <div className="profile-dropdown__divider" />
+
+                  <button
+                    className="profile-dropdown__item profile-dropdown__item--danger"
+                    onClick={() => {
+                      setAuth(false);
+                      setProfileOpen(false);
+                      navigate("/login");
+                    }}
+                  >
+                    <svg
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                      <polyline points="16 17 21 12 16 7" />
+                      <line x1="21" y1="12" x2="9" y2="12" />
+                    </svg>
+                    Sign Out
+                  </button>
+                </div>
+              )}
+            </div>
             <button className="navbar__icon-btn cart-btn" aria-label="Cart">
               <svg
                 width="20"
