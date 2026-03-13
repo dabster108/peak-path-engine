@@ -1,6 +1,9 @@
+// src\pages\Login.jsx
 import { useState, useRef } from "react";
 import { Link, useNavigate, Navigate } from "react-router-dom";
 import { isAuthenticated, setAuth } from "../App";
+import api from "../utils/api";
+import { useGoogleLogin } from "@react-oauth/google";
 import "./Login.css";
 
 const PARTICLES = Array.from({ length: 12 }, (_, i) => ({
@@ -40,7 +43,7 @@ export default function Login() {
     setTimeout(() => ripple.remove(), 600);
   };
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
 
@@ -48,39 +51,74 @@ export default function Login() {
       setError("Please enter your email address.");
       return;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError("Please enter a valid email address.");
-      return;
-    }
+
     if (!password) {
       setError("Please enter your password.");
       return;
     }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
-      return;
+
+    setLoading(true);
+
+    try {
+      const response = await api.post("login/", {
+        username: email, 
+        password: password,
+      });
+
+      const { access, user } = response.data;
+      const isAdmin = user?.role === "admin";
+
+      localStorage.setItem("shikhar_token", access);
+      setAuth(access);
+
+      setSuccess(true);
+
+      setTimeout(() => navigate(isAdmin ? "/admin" : "/"), 1200);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Login failed");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(true);
-    // Simulate login — set auth flag then redirect to home
-    setTimeout(() => {
-      setAuth(true);
-      setLoading(false);
-      setSuccess(true);
-      setTimeout(() => navigate("/"), 1200);
-    }, 1000);
   };
 
-  const handleGoogleLogin = () => {
-    setLoading(true);
-    setTimeout(() => {
-      setAuth(true);
-      setLoading(false);
-      setSuccess(true);
-      setTimeout(() => navigate("/"), 1200);
-    }, 800);
-  };
+  const googleLogin = useGoogleLogin({
+    scope: "openid email profile",
+    onSuccess: async (tokenResponse) => {
+      const token =
+        tokenResponse?.access_token || tokenResponse?.id_token || tokenResponse?.credential;
 
+      if (!token) {
+        setError("Google did not return a token");
+        return;
+      }
+
+      try {
+        const res = await api.post("google-login/", {
+          token,
+        });
+
+        const { access, user } = res.data;
+        const isAdmin = user?.role === "admin";
+
+        localStorage.setItem("shikhar_token", access);
+        setAuth(access);
+
+        setSuccess(true);
+
+        setTimeout(() => {
+          navigate(isAdmin ? "/admin" : "/");
+        }, 1200);
+      } catch (err) {
+        console.error(err);
+        setError(err.response?.data?.error || "Google login failed");
+      }
+    },
+
+    onError: (errorResponse) => {
+      console.error(errorResponse);
+      setError("Google authentication failed");
+    },
+  });
   return (
     <div className="login-page">
       {/* Background */}
@@ -154,7 +192,7 @@ export default function Login() {
           {/* Google sign-in */}
           <button
             className="login-google-btn"
-            onClick={handleGoogleLogin}
+            onClick={() => googleLogin()}
             disabled={loading}
           >
             <svg width="18" height="18" viewBox="0 0 48 48">

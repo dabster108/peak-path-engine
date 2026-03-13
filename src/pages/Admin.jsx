@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { formatNpr } from "../utils/currency";
+import api from "../utils/api";
 import "./Admin.css";
 
 /* ───── seed data ───── */
@@ -187,6 +188,15 @@ export default function Admin() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const navigate = useNavigate();
   const toastTimer = useRef(null);
+
+  useEffect(() => {
+    api
+      .get("profile/")
+      .then((res) => {
+        if (res.data.role !== "admin") navigate("/");
+      })
+      .catch(() => navigate("/"));
+  }, [navigate]);
 
   /* persist */
   useEffect(() => {

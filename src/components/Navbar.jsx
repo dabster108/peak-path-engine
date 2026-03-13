@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { allSearchItems, trendingSearches } from "../data/searchData";
 import { isAuthenticated, setAuth } from "../App";
 import { formatNpr } from "../utils/currency";
+import api from "../utils/api";
 import "./Navbar.css";
 
 const navLinks = [
@@ -101,6 +102,7 @@ export default function Navbar() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [cartCount] = useState(0);
+  const [user, setUser] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef(null);
   const location = useLocation();
@@ -123,6 +125,25 @@ export default function Navbar() {
   useEffect(() => {
     setProfileOpen(false);
   }, [location]);
+
+  // Fetch user profile when authenticated
+  useEffect(() => {
+    const fetchProfile = () => {
+      if (!isAuthenticated()) {
+        setUser(null);
+        return;
+      }
+
+      api
+        .get("profile/")
+        .then((res) => setUser(res.data))
+        .catch(() => setUser(null));
+    };
+
+    fetchProfile();
+    window.addEventListener("auth-changed", fetchProfile);
+    return () => window.removeEventListener("auth-changed", fetchProfile);
+  }, []);
 
   // Derived search results
   const searchResults =
@@ -324,11 +345,15 @@ export default function Navbar() {
                 >
                   {/* Profile header */}
                   <div className="profile-dropdown__header">
-                    <div className="profile-dropdown__avatar">S</div>
+                    <div className="profile-dropdown__avatar">
+                      {user?.username?.[0]?.toUpperCase() || "U"}
+                    </div>
                     <div className="profile-dropdown__info">
-                      <div className="profile-dropdown__name">Adventurer</div>
+                      <div className="profile-dropdown__name">
+                        {user?.username || "Adventurer"}
+                      </div>
                       <div className="profile-dropdown__email">
-                        shikhar@gmail.com
+                        {user?.email || "shikhar@gmail.com"}
                       </div>
                     </div>
                   </div>
