@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { allSearchItems, trendingSearches } from "../data/searchData";
 import { isAuthenticated, setAuth } from "../App";
+import { formatNpr } from "../utils/currency";
 import "./Navbar.css";
 
 const navLinks = [
@@ -185,7 +186,7 @@ export default function Navbar() {
   return (
     <>
       <div className="announcement-bar">
-        Free shipping on orders over ₹2999 &nbsp;|&nbsp;{" "}
+        Free shipping on orders over {formatNpr(2999)} &nbsp;|&nbsp;{" "}
         <span>Join SHIKHAR REWARDS</span>
       </div>
       <nav className={navClass}>
@@ -636,7 +637,7 @@ export default function Navbar() {
                               <span className="search-result-item__meta">
                                 {item.section} · {item.category}
                                 {item.price
-                                  ? ` · ₹${item.price.toLocaleString("en-IN")}`
+                                  ? ` · ${formatNpr(item.price)}`
                                   : ""}
                               </span>
                             </div>

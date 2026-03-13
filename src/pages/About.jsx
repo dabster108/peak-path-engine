@@ -352,7 +352,6 @@ export default function About() {
         </div>
       </section>
 
-       
       {/* ====== BRAND STORY ====== */}
       <section className="about-story section-pad">
         <div className="container">
@@ -571,7 +570,7 @@ export default function About() {
                   <span>Items repaired instead of replaced</span>
                 </div>
                 <div className="sus-stat">
-                  <strong>₹2.4Cr</strong>
+                  <strong>NPR 2.4Cr</strong>
                   <span>Donated to trail conservation</span>
                 </div>
               </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { formatNpr } from "../utils/currency";
 import "./Admin.css";
 
 /* ───── seed data ───── */
@@ -543,7 +544,7 @@ export default function Admin() {
                   </svg>
                 }
                 label="Stock Value"
-                value={`₹${(totalValue / 100000).toFixed(1)}L`}
+                value={`NPR ${(totalValue / 100000).toFixed(1)}L`}
                 sub="Total inventory worth"
                 color="linear-gradient(135deg,#22c55e,#16a34a)"
               />
@@ -724,7 +725,7 @@ export default function Admin() {
                     </select>
                   </div>
                   <div className="admin-field">
-                    <label>Price (₹) *</label>
+                    <label>Price (NPR) *</label>
                     <input
                       type="number"
                       value={addForm.price}
@@ -964,7 +965,7 @@ export default function Admin() {
                         </td>
                         <td className="admin-table__section">{p.section}</td>
                         <td className="admin-table__price">
-                          ₹{p.price.toLocaleString()}
+                          {formatNpr(p.price)}
                         </td>
                         <td>{stockBadge(p.stock)}</td>
                         <td>
