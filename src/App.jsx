@@ -30,6 +30,7 @@ import Goretex from "./pages/Goretex";
 import Terms from "./pages/Terms";
 import Bottles from "./pages/Bottles";
 import Login from "./pages/Login";
+import Admin from "./pages/Admin";
 import "./App.css";
 
 function ScrollToTop() {
@@ -108,18 +109,20 @@ function AppInner() {
   const [loaded, setLoaded] = useState(!isAuthenticated());
   const location = useLocation();
   const isLoginPage = location.pathname === "/login";
+  const isAdminPage = location.pathname.startsWith("/admin");
 
   return (
     <>
-      {!loaded && !isLoginPage && (
+      {!loaded && !isLoginPage && !isAdminPage && (
         <LoadingScreen onDone={() => setLoaded(true)} />
       )}
-      {!isLoginPage && <ScrollProgress />}
+      {!isLoginPage && !isAdminPage && <ScrollProgress />}
       <ScrollToTop />
-      {!isLoginPage && <Navbar />}
+      {!isLoginPage && !isAdminPage && <Navbar />}
       <Routes>
         {/* Public */}
         <Route path="/login" element={<Login />} />
+        <Route path="/admin" element={<Admin />} />
         {/* Protected */}
         <Route
           path="/"
@@ -204,8 +207,8 @@ function AppInner() {
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      {!isLoginPage && <Footer />}
-      {!isLoginPage && <BackToTop />}
+      {!isLoginPage && !isAdminPage && <Footer />}
+      {!isLoginPage && !isAdminPage && <BackToTop />}
     </>
   );
 }
