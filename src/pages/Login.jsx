@@ -6,22 +6,6 @@ import api from "../utils/api";
 import { useGoogleLogin } from "@react-oauth/google";
 import "./Login.css";
 
-const USERS_KEY = "shikhar_users";
-
-const getUsers = () => {
-  try {
-    const raw = localStorage.getItem(USERS_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-};
-
-const setUsers = (users) => {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
-};
-
 const PARTICLES = Array.from({ length: 12 }, (_, i) => ({
   id: i,
   size: Math.random() * 4 + 2,
@@ -32,7 +16,7 @@ const PARTICLES = Array.from({ length: 12 }, (_, i) => ({
 }));
 
 export default function Login() {
-  const isLoggedIn = isAuthenticated();
+  // ✅ ALL hooks must come before any early returns
   const [mode, setMode] = useState("register");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -47,8 +31,8 @@ export default function Login() {
   const navigate = useNavigate();
   const btnRef = useRef(null);
 
-  // Already logged in -> skip login/register page
-  if (isLoggedIn) return <Navigate to="/" replace />;
+  // ✅ Early return AFTER all hooks
+  if (isAuthenticated()) return <Navigate to="/" replace />;
 
   // Ripple effect on login button
   const handleRipple = (e) => {
@@ -63,6 +47,20 @@ export default function Login() {
     ripple.style.cssText = `width:${size}px;height:${size}px;left:${x}px;top:${y}px`;
     btn.appendChild(ripple);
     setTimeout(() => ripple.remove(), 600);
+  };
+
+  const getErrorMessage = (err) => {
+    const data = err?.response?.data;
+    if (typeof data === "string") return data;
+    if (data?.detail) return data.detail;
+    if (data?.error) return data.error;
+    if (data && typeof data === "object") {
+      const flat = Object.values(data)
+        .flatMap((v) => (Array.isArray(v) ? v : [v]))
+        .filter(Boolean);
+      if (flat.length > 0) return flat.join(" ");
+    }
+    return "Something went wrong. Please try again.";
   };
 
   const handleAuthSubmit = async (e) => {
@@ -86,6 +84,14 @@ export default function Login() {
         setError("Please enter your full name.");
         return;
       }
+      if (!confirmPassword) {
+        setError("Please confirm your password.");
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError("Passwords do not match.");
+        return;
+      }
     }
 
     if (!password) {
@@ -99,59 +105,43 @@ export default function Login() {
 
     setLoading(true);
 
-    if (mode === "register") {
-      setTimeout(() => {
-        const users = getUsers();
-        const alreadyExists = users.some((u) => u.email === normalizedEmail);
+    try {
+      if (mode === "register") {
+        const rawName = name.trim() || normalizedEmail.split("@")[0];
+        const safeUsername =
+          rawName
+            .replace(/\s+/g, "_")
+            .replace(/[^\w.@+-]/g, "")
+            .slice(0, 150) || normalizedEmail.split("@")[0];
 
-        if (alreadyExists) {
-          setLoading(false);
-          setError("This email is already registered. Please sign in.");
-          setMode("login");
-          setConfirmPassword("");
-          return;
-        }
-
-        users.push({
-          name: name.trim(),
+        await api.post("register/", {
+          username: safeUsername,
           email: normalizedEmail,
           password,
-          createdAt: Date.now(),
         });
-        setUsers(users);
-        setLoading(false);
-        setMessage("Account created. Please sign in to continue.");
+        setMessage("Account created. Please sign in.");
         setMode("login");
         setPassword("");
         setConfirmPassword("");
-      }, 700);
-      return;
-    }
-
-    // Login mode
-    setTimeout(() => {
-      const users = getUsers();
-      const user = users.find(
-        (u) => u.email === normalizedEmail && u.password === password,
-      );
-
-      if (!user) {
-        setLoading(false);
-        setError("Invalid email or password. Please register first.");
         return;
       }
 
-      setAuth(true);
-      setLoading(false);
-      setSuccess(true);
-      setTimeout(() => navigate("/"), 1200);
-    }, 900);
-  };
+      const res = await api.post("login/", {
+        username: normalizedEmail,
+        password,
+      });
 
-  const handleGoogleLogin = () => {
-    setLoading(true);
-    setTimeout(() => {
-      setAuth(true);
+      const { access, user } = res.data;
+      setAuth(access);
+      setSuccess(true);
+
+      // ✅ Hard redirect so ProtectedRoute re-evaluates localStorage fresh
+      setTimeout(() => {
+        window.location.href = user?.role === "admin" ? "/admin" : "/";
+      }, 900);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
       setLoading(false);
     }
   };
@@ -160,13 +150,17 @@ export default function Login() {
     scope: "openid email profile",
     onSuccess: async (tokenResponse) => {
       const token =
-        tokenResponse?.access_token || tokenResponse?.id_token || tokenResponse?.credential;
+        tokenResponse?.access_token ||
+        tokenResponse?.id_token ||
+        tokenResponse?.credential;
 
       if (!token) {
         setError("Google did not return a token");
+        setLoading(false);
         return;
       }
 
+      setLoading(true);
       try {
         const res = await api.post("google-login/", {
           token,
@@ -175,25 +169,28 @@ export default function Login() {
         const { access, user } = res.data;
         const isAdmin = user?.role === "admin";
 
-        localStorage.setItem("shikhar_token", access);
         setAuth(access);
-
         setSuccess(true);
 
+        // ✅ Hard redirect so ProtectedRoute re-evaluates localStorage fresh
         setTimeout(() => {
-          navigate(isAdmin ? "/admin" : "/");
+          window.location.href = isAdmin ? "/admin" : "/";
         }, 1200);
       } catch (err) {
         console.error(err);
-        setError(err.response?.data?.error || "Google login failed");
+        setError(getErrorMessage(err));
+      } finally {
+        setLoading(false);
       }
     },
 
     onError: (errorResponse) => {
       console.error(errorResponse);
       setError("Google authentication failed");
+      setLoading(false);
     },
   });
+
   return (
     <div className="login-page">
       {/* Background */}
@@ -308,7 +305,10 @@ export default function Login() {
           {/* Google sign-in */}
           <button
             className="login-google-btn"
-            onClick={handleGoogleLogin}
+            onClick={() => {
+              setError("");
+              googleLogin();
+            }}
             disabled={loading}
           >
             <svg width="18" height="18" viewBox="0 0 48 48">
