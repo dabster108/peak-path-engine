@@ -1,3 +1,4 @@
+// src\App.jsx
 import { useEffect, useState } from "react";
 import {
   BrowserRouter,
@@ -8,13 +9,19 @@ import {
 } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 
-// --- Simple auth helpers (localStorage-backed) ---
-const AUTH_KEY = "shikhar_auth";
-export const isAuthenticated = () => !!localStorage.getItem(AUTH_KEY);
-export const setAuth = (val) =>
-  val ? localStorage.setItem(AUTH_KEY, "1") : localStorage.removeItem(AUTH_KEY);
 
+const TOKEN_KEY = "shikhar_token";
+export const getToken = () => localStorage.getItem(TOKEN_KEY);
+export const isAuthenticated = () => !!getToken();
+export const setAuth = (token) => {
+  if (token) localStorage.setItem(TOKEN_KEY, token);
+  else localStorage.removeItem(TOKEN_KEY);
+
+  // Notify other parts of the app that authentication state changed
+  window.dispatchEvent(new Event("auth-changed"));
+};
 function ProtectedRoute({ children }) {
   if (!isAuthenticated()) return <Navigate to="/login" replace />;
   return children;
@@ -122,7 +129,14 @@ function AppInner() {
       <Routes>
         {/* Public */}
         <Route path="/login" element={<Login />} />
-        <Route path="/admin" element={<Admin />} />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <Admin />
+            </ProtectedRoute>
+          }
+        />
         {/* Protected */}
         <Route
           path="/"
@@ -215,8 +229,10 @@ function AppInner() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AppInner />
-    </BrowserRouter>
+    <GoogleOAuthProvider clientId="387390235264-pgcq968tkl1snam558av935ksi932k1v.apps.googleusercontent.com">
+      <BrowserRouter>
+        <AppInner />
+      </BrowserRouter>
+    </GoogleOAuthProvider>
   );
 }
