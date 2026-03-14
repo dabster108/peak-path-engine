@@ -6,6 +6,22 @@ import api from "../utils/api";
 import { useGoogleLogin } from "@react-oauth/google";
 import "./Login.css";
 
+const USERS_KEY = "shikhar_users";
+
+const getUsers = () => {
+  try {
+    const raw = localStorage.getItem(USERS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const setUsers = (users) => {
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+};
+
 const PARTICLES = Array.from({ length: 12 }, (_, i) => ({
   id: i,
   size: Math.random() * 4 + 2,
@@ -16,17 +32,23 @@ const PARTICLES = Array.from({ length: 12 }, (_, i) => ({
 }));
 
 export default function Login() {
-  // Already logged in → skip login page
-  if (isAuthenticated()) return <Navigate to="/" replace />;
-
+  const isLoggedIn = isAuthenticated();
+  const [mode, setMode] = useState("register");
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
   const btnRef = useRef(null);
+
+  // Already logged in -> skip login/register page
+  if (isLoggedIn) return <Navigate to="/" replace />;
 
   // Ripple effect on login button
   const handleRipple = (e) => {
@@ -43,40 +65,93 @@ export default function Login() {
     setTimeout(() => ripple.remove(), 600);
   };
 
-  const handleLogin = async (e) => {
+  const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setMessage("");
 
-    if (!email.trim()) {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail) {
       setError("Please enter your email address.");
       return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    if (mode === "register") {
+      if (!name.trim()) {
+        setError("Please enter your full name.");
+        return;
+      }
     }
 
     if (!password) {
       setError("Please enter your password.");
       return;
     }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
 
     setLoading(true);
 
-    try {
-      const response = await api.post("login/", {
-        username: email, 
-        password: password,
-      });
+    if (mode === "register") {
+      setTimeout(() => {
+        const users = getUsers();
+        const alreadyExists = users.some((u) => u.email === normalizedEmail);
 
-      const { access, user } = response.data;
-      const isAdmin = user?.role === "admin";
+        if (alreadyExists) {
+          setLoading(false);
+          setError("This email is already registered. Please sign in.");
+          setMode("login");
+          setConfirmPassword("");
+          return;
+        }
 
-      localStorage.setItem("shikhar_token", access);
-      setAuth(access);
+        users.push({
+          name: name.trim(),
+          email: normalizedEmail,
+          password,
+          createdAt: Date.now(),
+        });
+        setUsers(users);
+        setLoading(false);
+        setMessage("Account created. Please sign in to continue.");
+        setMode("login");
+        setPassword("");
+        setConfirmPassword("");
+      }, 700);
+      return;
+    }
 
+    // Login mode
+    setTimeout(() => {
+      const users = getUsers();
+      const user = users.find(
+        (u) => u.email === normalizedEmail && u.password === password,
+      );
+
+      if (!user) {
+        setLoading(false);
+        setError("Invalid email or password. Please register first.");
+        return;
+      }
+
+      setAuth(true);
+      setLoading(false);
       setSuccess(true);
+      setTimeout(() => navigate("/"), 1200);
+    }, 900);
+  };
 
-      setTimeout(() => navigate(isAdmin ? "/admin" : "/"), 1200);
-    } catch (err) {
-      setError(err.response?.data?.detail || "Login failed");
-    } finally {
+  const handleGoogleLogin = () => {
+    setLoading(true);
+    setTimeout(() => {
+      setAuth(true);
       setLoading(false);
     }
   };
@@ -185,14 +260,55 @@ export default function Login() {
 
           {/* Heading */}
           <div className="login-heading">
-            <h1>Welcome Back</h1>
-            <p>Sign in to your adventure account</p>
+            <h1>{mode === "register" ? "Create Account" : "Welcome Back"}</h1>
+            <p>
+              {mode === "register"
+                ? "Register first, then sign in to start your adventure"
+                : "Sign in to your adventure account"}
+            </p>
+          </div>
+
+          {/* Login/Register Toggle */}
+          <div
+            className="login-mode-toggle"
+            role="tablist"
+            aria-label="Auth mode"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "register"}
+              className={
+                "login-mode-btn" + (mode === "register" ? " active" : "")
+              }
+              onClick={() => {
+                setMode("register");
+                setError("");
+                setMessage("");
+              }}
+            >
+              Register
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "login"}
+              className={"login-mode-btn" + (mode === "login" ? " active" : "")}
+              onClick={() => {
+                setMode("login");
+                setError("");
+                setMessage("");
+                setConfirmPassword("");
+              }}
+            >
+              Login
+            </button>
           </div>
 
           {/* Google sign-in */}
           <button
             className="login-google-btn"
-            onClick={() => googleLogin()}
+            onClick={handleGoogleLogin}
             disabled={loading}
           >
             <svg width="18" height="18" viewBox="0 0 48 48">
@@ -220,9 +336,16 @@ export default function Login() {
           {/* Divider */}
           <div className="login-divider">
             <span />
-            <span className="login-divider-text">or sign in with email</span>
+            <span className="login-divider-text">
+              {mode === "register"
+                ? "register with email"
+                : "or sign in with email"}
+            </span>
             <span />
           </div>
+
+          {/* Registration success note */}
+          {message && <div className="login-success-note">{message}</div>}
 
           {/* Error */}
           {error && (
@@ -244,7 +367,43 @@ export default function Login() {
           )}
 
           {/* Form */}
-          <form className="login-form" onSubmit={handleLogin} noValidate>
+          <form className="login-form" onSubmit={handleAuthSubmit} noValidate>
+            {/* Full Name (register only) */}
+            {mode === "register" && (
+              <div className="login-field">
+                <label className="login-label" htmlFor="register-name">
+                  Full Name
+                </label>
+                <div className="login-input-wrap">
+                  <input
+                    id="register-name"
+                    type="text"
+                    className="login-input"
+                    placeholder="Your full name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    autoComplete="name"
+                    disabled={loading}
+                  />
+                  <span className="login-input-icon">
+                    <svg
+                      width="17"
+                      height="17"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Email */}
             <div className="login-field">
               <label className="login-label" htmlFor="login-email">
@@ -350,10 +509,90 @@ export default function Login() {
               </div>
             </div>
 
+            {/* Confirm Password (register only) */}
+            {mode === "register" && (
+              <div className="login-field">
+                <label
+                  className="login-label"
+                  htmlFor="register-confirm-password"
+                >
+                  Confirm Password
+                </label>
+                <div className="login-input-wrap">
+                  <input
+                    id="register-confirm-password"
+                    type={showConfirmPassword ? "text" : "password"}
+                    className="login-input"
+                    placeholder="••••••••"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    autoComplete="new-password"
+                    disabled={loading}
+                  />
+                  <span className="login-input-icon">
+                    <svg
+                      width="17"
+                      height="17"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                  </span>
+                  <button
+                    type="button"
+                    className="login-pw-toggle"
+                    onClick={() => setShowConfirmPassword((v) => !v)}
+                    aria-label={
+                      showConfirmPassword ? "Hide password" : "Show password"
+                    }
+                  >
+                    {showConfirmPassword ? (
+                      <svg
+                        width="17"
+                        height="17"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                        <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                        <line x1="1" y1="1" x2="23" y2="23" />
+                      </svg>
+                    ) : (
+                      <svg
+                        width="17"
+                        height="17"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Forgot password */}
-            <div className="login-forgot">
-              <a href="#">Forgot password?</a>
-            </div>
+            {mode === "login" && (
+              <div className="login-forgot">
+                <a href="#">Forgot password?</a>
+              </div>
+            )}
 
             {/* Submit */}
             <button
@@ -363,13 +602,50 @@ export default function Login() {
               disabled={loading}
               onClick={handleRipple}
             >
-              {loading ? "Signing in…" : "Sign In"}
+              {loading
+                ? mode === "register"
+                  ? "Creating Account..."
+                  : "Signing in..."
+                : mode === "register"
+                  ? "Create Account"
+                  : "Sign In"}
             </button>
           </form>
 
           {/* Footer */}
           <p className="login-footer-text">
-            Don't have an account? <a href="#">Create one — it's free</a>
+            {mode === "register" ? (
+              <>
+                Already have an account?{" "}
+                <button
+                  type="button"
+                  className="login-footer-switch"
+                  onClick={() => {
+                    setMode("login");
+                    setError("");
+                    setMessage("");
+                    setConfirmPassword("");
+                  }}
+                >
+                  Login here
+                </button>
+              </>
+            ) : (
+              <>
+                New user?{" "}
+                <button
+                  type="button"
+                  className="login-footer-switch"
+                  onClick={() => {
+                    setMode("register");
+                    setError("");
+                    setMessage("");
+                  }}
+                >
+                  Register first
+                </button>
+              </>
+            )}
           </p>
         </div>
       </div>
