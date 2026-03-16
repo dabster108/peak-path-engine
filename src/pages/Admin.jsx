@@ -4,147 +4,14 @@ import { formatNpr } from "../utils/currency";
 import api from "../utils/api";
 import "./Admin.css";
 
-/* ───── seed data ───── */
-const SEED_PRODUCTS = [
-  {
-    id: 1,
-    name: "Himalayan Down Parka",
-    category: "Men's",
-    price: 18999,
-    stock: 24,
-    badge: "Sale",
-    section: "jackets",
-  },
-  {
-    id: 2,
-    name: "Summit Shield Jacket",
-    category: "Women's",
-    price: 16499,
-    stock: 12,
-    badge: "New",
-    section: "jackets",
-  },
-  {
-    id: 3,
-    name: "Alpine Fleece Pullover",
-    category: "Men's",
-    price: 8999,
-    stock: 38,
-    badge: "Sale",
-    section: "fleece",
-  },
-  {
-    id: 4,
-    name: "Trek Pro Pants",
-    category: "Women's",
-    price: 7499,
-    stock: 5,
-    badge: null,
-    section: "pants",
-  },
-  {
-    id: 5,
-    name: "Everest Base Layer Set",
-    category: "Men's",
-    price: 5999,
-    stock: 0,
-    badge: "Sale",
-    section: "base-layer",
-  },
-  {
-    id: 6,
-    name: "Gore-Tex Hardshell",
-    category: "Men's",
-    price: 22999,
-    stock: 8,
-    badge: "New",
-    section: "goretex",
-  },
-  {
-    id: 7,
-    name: "Trail Running Shoes",
-    category: "Women's",
-    price: 9499,
-    stock: 15,
-    badge: null,
-    section: "footwear",
-  },
-  {
-    id: 8,
-    name: "Summit Pack 60L",
-    category: "Unisex",
-    price: 12999,
-    stock: 6,
-    badge: "Sale",
-    section: "backpacks",
-  },
-  {
-    id: 9,
-    name: "Hydra Bladder 3L",
-    category: "Unisex",
-    price: 2499,
-    stock: 52,
-    badge: null,
-    section: "bottles",
-  },
-  {
-    id: 10,
-    name: "Carbon Trekking Poles",
-    category: "Unisex",
-    price: 6999,
-    stock: 3,
-    badge: "New",
-    section: "equipment",
-  },
-  {
-    id: 11,
-    name: "Merino Wool Socks",
-    category: "Men's",
-    price: 899,
-    stock: 120,
-    badge: null,
-    section: "accessories",
-  },
-  {
-    id: 12,
-    name: "UV400 Goggles",
-    category: "Unisex",
-    price: 3499,
-    stock: 0,
-    badge: null,
-    section: "equipment",
-  },
-];
-
-const CATEGORIES = ["Men's", "Women's", "Unisex"];
-const SECTIONS = [
-  "jackets",
-  "fleece",
-  "pants",
-  "base-layer",
-  "goretex",
-  "footwear",
-  "backpacks",
-  "bottles",
-  "equipment",
-  "accessories",
-];
-const BADGES = ["", "New", "Sale", "Limited"];
-
-const STORAGE_KEY = "shikhar_admin_products";
-
-function loadProducts() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : SEED_PRODUCTS;
-  } catch {
-    return SEED_PRODUCTS;
-  }
-}
-
-function saveProducts(products) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
-}
+const emptyForm = () => ({
+  name: "",
+  category: "",
+  price: "",
+  stock: "",
+  badge: "",
+  section: "",
+});
 
 /* ───── stat card ───── */
 function StatCard({ icon, label, value, sub, color, delay }) {
@@ -162,19 +29,16 @@ function StatCard({ icon, label, value, sub, color, delay }) {
   );
 }
 
-/* ───── empty form ───── */
-const emptyForm = () => ({
-  name: "",
-  category: "Men's",
-  price: "",
-  stock: "",
-  badge: "",
-  section: "jackets",
-});
-
 export default function Admin() {
   const [tab, setTab] = useState("dashboard");
-  const [products, setProducts] = useState(loadProducts);
+  const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+
+  /* ── DB-driven dropdowns ── */
+  const [categories, setCategories] = useState([]);
+  const [sections, setSections] = useState([]);
+  const [badges, setBadges] = useState([]);
+
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("All");
   const [filterStock, setFilterStock] = useState("All");
@@ -189,6 +53,14 @@ export default function Admin() {
   const navigate = useNavigate();
   const toastTimer = useRef(null);
 
+  /* ── toast helper (defined before useEffects that use it) ── */
+  const showToast = (msg, type = "success") => {
+    clearTimeout(toastTimer.current);
+    setToast({ msg, type });
+    toastTimer.current = setTimeout(() => setToast(null), 2800);
+  };
+
+  /* ── auth guard ── */
   useEffect(() => {
     api
       .get("profile/")
@@ -198,30 +70,42 @@ export default function Admin() {
       .catch(() => navigate("/"));
   }, [navigate]);
 
-  /* persist */
+  /* ── load categories, sections, badges from DB ── */
   useEffect(() => {
-    saveProducts(products);
-  }, [products]);
+    Promise.all([
+      api.get("categories/"),
+      api.get("sections/"),
+      api.get("badges/"),
+    ])
+      .then(([catRes, secRes, badRes]) => {
+        setCategories(catRes.data.map((c) => c.name));
+        setSections(secRes.data.map((s) => s.name));
+        setBadges(["", ...badRes.data.map((b) => b.name)]);
+      })
+      .catch(() => showToast("Failed to load filters.", "warning"));
+  }, []);
 
-  /* toast helper */
-  const showToast = (msg, type = "success") => {
-    clearTimeout(toastTimer.current);
-    setToast({ msg, type });
-    toastTimer.current = setTimeout(() => setToast(null), 2800);
-  };
+  /* ── load products from API ── */
+  useEffect(() => {
+    api
+      .get("products/")
+      .then((res) => setProducts(res.data))
+      .catch(() => showToast("Failed to load products.", "warning"))
+      .finally(() => setProductsLoading(false));
+  }, []);
 
-  /* derived stats */
+  /* ── derived stats ── */
   const totalProducts = products.length;
   const lowStock = products.filter((p) => p.stock > 0 && p.stock <= 8).length;
   const outOfStock = products.filter((p) => p.stock === 0).length;
   const totalValue = products.reduce((s, p) => s + p.price * p.stock, 0);
 
-  /* filtered list */
+  /* ── filtered list ── */
   const filtered = products.filter((p) => {
     const matchSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.category.toLowerCase().includes(search.toLowerCase()) ||
-      p.section.toLowerCase().includes(search.toLowerCase());
+      (p.category || "").toLowerCase().includes(search.toLowerCase()) ||
+      (p.section || "").toLowerCase().includes(search.toLowerCase());
     const matchCat = filterCat === "All" || p.category === filterCat;
     const matchStock =
       filterStock === "All" ||
@@ -231,7 +115,7 @@ export default function Admin() {
     return matchSearch && matchCat && matchStock;
   });
 
-  /* inline edit */
+  /* ── inline edit ── */
   const startEdit = (p) => {
     setEditingId(p.id);
     setEditRow({ ...p });
@@ -240,33 +124,43 @@ export default function Admin() {
     setEditingId(null);
     setEditRow({});
   };
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!editRow.name.trim()) return;
-    setProducts((prev) =>
-      prev.map((p) =>
-        p.id === editingId
-          ? {
-              ...editRow,
-              price: Number(editRow.price),
-              stock: Number(editRow.stock),
-            }
-          : p,
-      ),
-    );
-    setEditingId(null);
-    showToast("Product updated.");
+    try {
+      const res = await api.patch(`products/${editingId}/`, {
+        name: editRow.name,
+        category: editRow.category,
+        section: editRow.section,
+        badge: editRow.badge || null,
+        price: Number(editRow.price),
+        stock: Number(editRow.stock),
+      });
+      setProducts((prev) =>
+        prev.map((p) => (p.id === editingId ? res.data : p))
+      );
+      setEditingId(null);
+      showToast("Product updated.");
+    } catch {
+      showToast("Failed to update product.", "warning");
+    }
   };
 
-  /* delete */
+  /* ── delete ── */
   const confirmDelete = (id) => setDeleteConfirm(id);
-  const doDelete = () => {
-    setProducts((prev) => prev.filter((p) => p.id !== deleteConfirm));
-    setDeleteConfirm(null);
-    showToast("Product deleted.", "warning");
+  const doDelete = async () => {
+    try {
+      await api.delete(`products/${deleteConfirm}/`);
+      setProducts((prev) => prev.filter((p) => p.id !== deleteConfirm));
+      setDeleteConfirm(null);
+      showToast("Product deleted.", "warning");
+    } catch {
+      showToast("Failed to delete product.", "warning");
+      setDeleteConfirm(null);
+    }
   };
 
-  /* add product */
-  const handleAdd = () => {
+  /* ── add product ── */
+  const handleAdd = async () => {
     if (!addForm.name.trim()) {
       setAddError("Product name is required.");
       return;
@@ -279,23 +173,26 @@ export default function Admin() {
       setAddError("Enter a valid stock quantity.");
       return;
     }
-    const newProduct = {
-      id: Date.now(),
-      name: addForm.name.trim(),
-      category: addForm.category,
-      price: Number(addForm.price),
-      stock: Number(addForm.stock),
-      badge: addForm.badge || null,
-      section: addForm.section,
-    };
-    setProducts((prev) => [newProduct, ...prev]);
-    setAddForm(emptyForm());
-    setAddError("");
-    setShowAdd(false);
-    showToast(`"${newProduct.name}" added to inventory.`);
+    try {
+      const res = await api.post("add-product/", {
+        name: addForm.name.trim(),
+        category: addForm.category,
+        section: addForm.section,
+        badge: addForm.badge || null,
+        price: Number(addForm.price),
+        stock: Number(addForm.stock),
+      });
+      setProducts((prev) => [res.data, ...prev]);
+      setAddForm(emptyForm());
+      setAddError("");
+      setShowAdd(false);
+      showToast(`"${res.data.name}" added to inventory.`);
+    } catch {
+      setAddError("Failed to add product. Please try again.");
+    }
   };
 
-  /* stock badge */
+  /* ── stock badge ── */
   const stockBadge = (stock) => {
     if (stock === 0)
       return <span className="stock-badge out">Out of Stock</span>;
@@ -312,11 +209,7 @@ export default function Admin() {
           <Link to="/" className="admin-brand-link">
             <span className="admin-brand-icon">
               <svg width="26" height="26" viewBox="0 0 28 28" fill="none">
-                <polygon
-                  points="14,2 26,24 2,24"
-                  fill="currentColor"
-                  opacity="0.9"
-                />
+                <polygon points="14,2 26,24 2,24" fill="currentColor" opacity="0.9" />
                 <polygon points="14,8 21,24 7,24" fill="white" opacity="0.3" />
               </svg>
             </span>
@@ -328,21 +221,9 @@ export default function Admin() {
         <nav className="admin-sidebar__nav">
           <button
             className={`admin-nav-item${tab === "dashboard" ? " active" : ""}`}
-            onClick={() => {
-              setTab("dashboard");
-              setSidebarOpen(false);
-            }}
+            onClick={() => { setTab("dashboard"); setSidebarOpen(false); }}
           >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="3" width="7" height="7" rx="1" />
               <rect x="14" y="3" width="7" height="7" rx="1" />
               <rect x="3" y="14" width="7" height="7" rx="1" />
@@ -352,21 +233,9 @@ export default function Admin() {
           </button>
           <button
             className={`admin-nav-item${tab === "products" ? " active" : ""}`}
-            onClick={() => {
-              setTab("products");
-              setSidebarOpen(false);
-            }}
+            onClick={() => { setTab("products"); setSidebarOpen(false); }}
           >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
               <line x1="3" y1="6" x2="21" y2="6" />
               <path d="M16 10a4 4 0 0 1-8 0" />
@@ -374,32 +243,14 @@ export default function Admin() {
             Products & Stock
           </button>
           <button className="admin-nav-item admin-nav-item--disabled">
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
             </svg>
             Orders
             <span className="admin-nav-soon">Soon</span>
           </button>
           <button className="admin-nav-item admin-nav-item--disabled">
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
               <circle cx="9" cy="7" r="4" />
               <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
@@ -412,16 +263,7 @@ export default function Admin() {
 
         <div className="admin-sidebar__footer">
           <Link to="/" className="admin-sidebar-back">
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="m15 18-6-6 6-6" />
             </svg>
             Back to Store
@@ -431,10 +273,7 @@ export default function Admin() {
 
       {/* Sidebar overlay (mobile) */}
       {sidebarOpen && (
-        <div
-          className="admin-sidebar-overlay"
-          onClick={() => setSidebarOpen(false)}
-        />
+        <div className="admin-sidebar-overlay" onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* ── Main ── */}
@@ -446,9 +285,7 @@ export default function Admin() {
             onClick={() => setSidebarOpen(true)}
             aria-label="Menu"
           >
-            <span />
-            <span />
-            <span />
+            <span /><span /><span />
           </button>
           <div className="admin-topbar__title">
             {tab === "dashboard" ? "Dashboard" : "Products & Stock"}
@@ -470,130 +307,85 @@ export default function Admin() {
               <StatCard
                 delay="0ms"
                 icon={
-                  <svg
-                    width="22"
-                    height="22"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
                     <line x1="3" y1="6" x2="21" y2="6" />
                     <path d="M16 10a4 4 0 0 1-8 0" />
                   </svg>
                 }
                 label="Total Products"
-                value={totalProducts}
+                value={productsLoading ? "…" : totalProducts}
                 sub={`${filtered.length} shown`}
                 color="linear-gradient(135deg,#f59e0b,#d97706)"
               />
               <StatCard
                 delay="80ms"
                 icon={
-                  <svg
-                    width="22"
-                    height="22"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                     <line x1="12" y1="9" x2="12" y2="13" />
                     <line x1="12" y1="17" x2="12.01" y2="17" />
                   </svg>
                 }
                 label="Low Stock"
-                value={lowStock}
+                value={productsLoading ? "…" : lowStock}
                 sub="≤ 8 units remaining"
                 color="linear-gradient(135deg,#f97316,#ea580c)"
               />
               <StatCard
                 delay="160ms"
                 icon={
-                  <svg
-                    width="22"
-                    height="22"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="10" />
                     <line x1="12" y1="8" x2="12" y2="12" />
                     <line x1="12" y1="16" x2="12.01" y2="16" />
                   </svg>
                 }
                 label="Out of Stock"
-                value={outOfStock}
+                value={productsLoading ? "…" : outOfStock}
                 sub="Needs restocking"
                 color="linear-gradient(135deg,#ef4444,#dc2626)"
               />
               <StatCard
                 delay="240ms"
                 icon={
-                  <svg
-                    width="22"
-                    height="22"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="12" y1="1" x2="12" y2="23" />
                     <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
                   </svg>
                 }
                 label="Stock Value"
-                value={`NPR ${(totalValue / 100000).toFixed(1)}L`}
+                value={productsLoading ? "…" : `NPR ${(totalValue / 100000).toFixed(1)}L`}
                 sub="Total inventory worth"
                 color="linear-gradient(135deg,#22c55e,#16a34a)"
               />
             </div>
 
-            {/* Quick-access to problem items */}
+            {/* Quick-access panels */}
             <div className="admin-dash-panels">
               <div className="admin-dash-panel">
                 <div className="admin-dash-panel__head">
                   <span className="admin-dash-panel__dot red" />
                   Out of Stock
                 </div>
-                {products.filter((p) => p.stock === 0).length === 0 ? (
-                  <div className="admin-dash-panel__empty">
-                    All products are stocked ✓
-                  </div>
+                {productsLoading ? (
+                  <div className="admin-dash-panel__empty">Loading…</div>
+                ) : products.filter((p) => p.stock === 0).length === 0 ? (
+                  <div className="admin-dash-panel__empty">All products are stocked ✓</div>
                 ) : (
                   <ul className="admin-dash-panel__list">
-                    {products
-                      .filter((p) => p.stock === 0)
-                      .map((p) => (
-                        <li key={p.id} className="admin-dash-panel__item">
-                          <span className="admin-dash-panel__name">
-                            {p.name}
-                          </span>
-                          <span className="admin-dash-panel__cat">
-                            {p.category}
-                          </span>
-                          <button
-                            className="admin-dash-panel__btn"
-                            onClick={() => {
-                              setTab("products");
-                              setTimeout(() => startEdit(p), 100);
-                            }}
-                          >
-                            Restock
-                          </button>
-                        </li>
-                      ))}
+                    {products.filter((p) => p.stock === 0).map((p) => (
+                      <li key={p.id} className="admin-dash-panel__item">
+                        <span className="admin-dash-panel__name">{p.name}</span>
+                        <span className="admin-dash-panel__cat">{p.category}</span>
+                        <button
+                          className="admin-dash-panel__btn"
+                          onClick={() => { setTab("products"); setTimeout(() => startEdit(p), 100); }}
+                        >
+                          Restock
+                        </button>
+                      </li>
+                    ))}
                   </ul>
                 )}
               </div>
@@ -603,34 +395,24 @@ export default function Admin() {
                   <span className="admin-dash-panel__dot orange" />
                   Low Stock (≤ 8)
                 </div>
-                {products.filter((p) => p.stock > 0 && p.stock <= 8).length ===
-                0 ? (
-                  <div className="admin-dash-panel__empty">
-                    No low-stock items ✓
-                  </div>
+                {productsLoading ? (
+                  <div className="admin-dash-panel__empty">Loading…</div>
+                ) : products.filter((p) => p.stock > 0 && p.stock <= 8).length === 0 ? (
+                  <div className="admin-dash-panel__empty">No low-stock items ✓</div>
                 ) : (
                   <ul className="admin-dash-panel__list">
-                    {products
-                      .filter((p) => p.stock > 0 && p.stock <= 8)
-                      .map((p) => (
-                        <li key={p.id} className="admin-dash-panel__item">
-                          <span className="admin-dash-panel__name">
-                            {p.name}
-                          </span>
-                          <span className="admin-dash-panel__stock">
-                            {p.stock} left
-                          </span>
-                          <button
-                            className="admin-dash-panel__btn"
-                            onClick={() => {
-                              setTab("products");
-                              setTimeout(() => startEdit(p), 100);
-                            }}
-                          >
-                            Edit
-                          </button>
-                        </li>
-                      ))}
+                    {products.filter((p) => p.stock > 0 && p.stock <= 8).map((p) => (
+                      <li key={p.id} className="admin-dash-panel__item">
+                        <span className="admin-dash-panel__name">{p.name}</span>
+                        <span className="admin-dash-panel__stock">{p.stock} left</span>
+                        <button
+                          className="admin-dash-panel__btn"
+                          onClick={() => { setTab("products"); setTimeout(() => startEdit(p), 100); }}
+                        >
+                          Edit
+                        </button>
+                      </li>
+                    ))}
                   </ul>
                 )}
               </div>
@@ -644,27 +426,13 @@ export default function Admin() {
             <div className="admin-section-header">
               <div>
                 <h2 className="admin-section-title">Products & Stock</h2>
-                <p className="admin-section-sub">
-                  {products.length} total products
-                </p>
+                <p className="admin-section-sub">{products.length} total products</p>
               </div>
               <button
                 className="admin-add-btn"
-                onClick={() => {
-                  setShowAdd(true);
-                  setAddError("");
-                }}
+                onClick={() => { setShowAdd(true); setAddError(""); }}
               >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
@@ -679,19 +447,9 @@ export default function Admin() {
                   <span>New Product</span>
                   <button
                     className="admin-add-form__close"
-                    onClick={() => {
-                      setShowAdd(false);
-                      setAddError("");
-                    }}
+                    onClick={() => { setShowAdd(false); setAddError(""); }}
                   >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                    >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                       <line x1="18" y1="6" x2="6" y2="18" />
                       <line x1="6" y1="6" x2="18" y2="18" />
                     </svg>
@@ -702,9 +460,7 @@ export default function Admin() {
                     <label>Name *</label>
                     <input
                       value={addForm.name}
-                      onChange={(e) =>
-                        setAddForm((f) => ({ ...f, name: e.target.value }))
-                      }
+                      onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))}
                       placeholder="Product name"
                     />
                   </div>
@@ -712,26 +468,20 @@ export default function Admin() {
                     <label>Category *</label>
                     <select
                       value={addForm.category}
-                      onChange={(e) =>
-                        setAddForm((f) => ({ ...f, category: e.target.value }))
-                      }
+                      onChange={(e) => setAddForm((f) => ({ ...f, category: e.target.value }))}
                     >
-                      {CATEGORIES.map((c) => (
-                        <option key={c}>{c}</option>
-                      ))}
+                      <option value="">— Select —</option>
+                      {categories.map((c) => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                   <div className="admin-field">
                     <label>Section</label>
                     <select
                       value={addForm.section}
-                      onChange={(e) =>
-                        setAddForm((f) => ({ ...f, section: e.target.value }))
-                      }
+                      onChange={(e) => setAddForm((f) => ({ ...f, section: e.target.value }))}
                     >
-                      {SECTIONS.map((s) => (
-                        <option key={s}>{s}</option>
-                      ))}
+                      <option value="">— Select —</option>
+                      {sections.map((s) => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
                   <div className="admin-field">
@@ -739,9 +489,7 @@ export default function Admin() {
                     <input
                       type="number"
                       value={addForm.price}
-                      onChange={(e) =>
-                        setAddForm((f) => ({ ...f, price: e.target.value }))
-                      }
+                      onChange={(e) => setAddForm((f) => ({ ...f, price: e.target.value }))}
                       placeholder="e.g. 12999"
                       min="0"
                     />
@@ -751,9 +499,7 @@ export default function Admin() {
                     <input
                       type="number"
                       value={addForm.stock}
-                      onChange={(e) =>
-                        setAddForm((f) => ({ ...f, stock: e.target.value }))
-                      }
+                      onChange={(e) => setAddForm((f) => ({ ...f, stock: e.target.value }))}
                       placeholder="e.g. 25"
                       min="0"
                     />
@@ -762,27 +508,15 @@ export default function Admin() {
                     <label>Badge</label>
                     <select
                       value={addForm.badge}
-                      onChange={(e) =>
-                        setAddForm((f) => ({ ...f, badge: e.target.value }))
-                      }
+                      onChange={(e) => setAddForm((f) => ({ ...f, badge: e.target.value }))}
                     >
-                      {BADGES.map((b) => (
-                        <option key={b} value={b}>
-                          {b || "None"}
-                        </option>
-                      ))}
+                      {badges.map((b) => <option key={b} value={b}>{b || "None"}</option>)}
                     </select>
                   </div>
                 </div>
                 {addError && <div className="admin-form-error">{addError}</div>}
                 <div className="admin-add-form__actions">
-                  <button
-                    className="admin-btn-ghost"
-                    onClick={() => {
-                      setShowAdd(false);
-                      setAddError("");
-                    }}
-                  >
+                  <button className="admin-btn-ghost" onClick={() => { setShowAdd(false); setAddError(""); }}>
                     Cancel
                   </button>
                   <button className="admin-btn-primary" onClick={handleAdd}>
@@ -795,14 +529,7 @@ export default function Admin() {
             {/* Filters */}
             <div className="admin-filters">
               <div className="admin-search-wrap">
-                <svg
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <circle cx="11" cy="11" r="8" />
                   <path d="m21 21-4.35-4.35" />
                 </svg>
@@ -814,7 +541,7 @@ export default function Admin() {
                 />
               </div>
               <div className="admin-filter-chips">
-                {["All", "Men's", "Women's", "Unisex"].map((c) => (
+                {["All", ...categories].map((c) => (
                   <button
                     key={c}
                     className={`admin-chip${filterCat === c ? " active" : ""}`}
@@ -839,204 +566,130 @@ export default function Admin() {
 
             {/* Table */}
             <div className="admin-table-wrap">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Product</th>
-                    <th>Category</th>
-                    <th>Section</th>
-                    <th>Price</th>
-                    <th>Stock</th>
-                    <th>Badge</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.length === 0 && (
+              {productsLoading ? (
+                <div className="admin-table__empty">Loading products…</div>
+              ) : (
+                <table className="admin-table">
+                  <thead>
                     <tr>
-                      <td colSpan={7} className="admin-table__empty">
-                        No products match your filters.
-                      </td>
+                      <th>Product</th>
+                      <th>Category</th>
+                      <th>Section</th>
+                      <th>Price</th>
+                      <th>Stock</th>
+                      <th>Badge</th>
+                      <th>Actions</th>
                     </tr>
-                  )}
-                  {filtered.map((p) =>
-                    editingId === p.id ? (
-                      <tr key={p.id} className="admin-table__edit-row">
-                        <td>
-                          <input
-                            className="admin-cell-input"
-                            value={editRow.name}
-                            onChange={(e) =>
-                              setEditRow((r) => ({
-                                ...r,
-                                name: e.target.value,
-                              }))
-                            }
-                          />
-                        </td>
-                        <td>
-                          <select
-                            className="admin-cell-select"
-                            value={editRow.category}
-                            onChange={(e) =>
-                              setEditRow((r) => ({
-                                ...r,
-                                category: e.target.value,
-                              }))
-                            }
-                          >
-                            {CATEGORIES.map((c) => (
-                              <option key={c}>{c}</option>
-                            ))}
-                          </select>
-                        </td>
-                        <td>
-                          <select
-                            className="admin-cell-select"
-                            value={editRow.section}
-                            onChange={(e) =>
-                              setEditRow((r) => ({
-                                ...r,
-                                section: e.target.value,
-                              }))
-                            }
-                          >
-                            {SECTIONS.map((s) => (
-                              <option key={s}>{s}</option>
-                            ))}
-                          </select>
-                        </td>
-                        <td>
-                          <input
-                            className="admin-cell-input admin-cell-input--sm"
-                            type="number"
-                            value={editRow.price}
-                            onChange={(e) =>
-                              setEditRow((r) => ({
-                                ...r,
-                                price: e.target.value,
-                              }))
-                            }
-                            min="0"
-                          />
-                        </td>
-                        <td>
-                          <input
-                            className="admin-cell-input admin-cell-input--sm"
-                            type="number"
-                            value={editRow.stock}
-                            onChange={(e) =>
-                              setEditRow((r) => ({
-                                ...r,
-                                stock: e.target.value,
-                              }))
-                            }
-                            min="0"
-                          />
-                        </td>
-                        <td>
-                          <select
-                            className="admin-cell-select"
-                            value={editRow.badge || ""}
-                            onChange={(e) =>
-                              setEditRow((r) => ({
-                                ...r,
-                                badge: e.target.value || null,
-                              }))
-                            }
-                          >
-                            {BADGES.map((b) => (
-                              <option key={b} value={b}>
-                                {b || "None"}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="admin-table__actions">
-                          <button
-                            className="admin-action-btn admin-action-btn--save"
-                            onClick={saveEdit}
-                          >
-                            Save
-                          </button>
-                          <button
-                            className="admin-action-btn admin-action-btn--cancel"
-                            onClick={cancelEdit}
-                          >
-                            Cancel
-                          </button>
+                  </thead>
+                  <tbody>
+                    {filtered.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="admin-table__empty">
+                          No products match your filters.
                         </td>
                       </tr>
-                    ) : (
-                      <tr key={p.id} className="admin-table__row">
-                        <td className="admin-table__name">{p.name}</td>
-                        <td>
-                          <span className="admin-cat-tag">{p.category}</span>
-                        </td>
-                        <td className="admin-table__section">{p.section}</td>
-                        <td className="admin-table__price">
-                          {formatNpr(p.price)}
-                        </td>
-                        <td>{stockBadge(p.stock)}</td>
-                        <td>
-                          {p.badge ? (
-                            <span
-                              className={`admin-badge-tag badge-${p.badge.toLowerCase()}`}
+                    )}
+                    {filtered.map((p) =>
+                      editingId === p.id ? (
+                        <tr key={p.id} className="admin-table__edit-row">
+                          <td>
+                            <input
+                              className="admin-cell-input"
+                              value={editRow.name}
+                              onChange={(e) => setEditRow((r) => ({ ...r, name: e.target.value }))}
+                            />
+                          </td>
+                          <td>
+                            <select
+                              className="admin-cell-select"
+                              value={editRow.category || ""}
+                              onChange={(e) => setEditRow((r) => ({ ...r, category: e.target.value }))}
                             >
-                              {p.badge}
-                            </span>
-                          ) : (
-                            <span className="admin-table__none">—</span>
-                          )}
-                        </td>
-                        <td className="admin-table__actions">
-                          <button
-                            className="admin-action-btn admin-action-btn--edit"
-                            onClick={() => startEdit(p)}
-                          >
-                            <svg
-                              width="14"
-                              height="14"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
+                              <option value="">— Select —</option>
+                              {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </td>
+                          <td>
+                            <select
+                              className="admin-cell-select"
+                              value={editRow.section || ""}
+                              onChange={(e) => setEditRow((r) => ({ ...r, section: e.target.value }))}
                             >
-                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                            </svg>
-                            Edit
-                          </button>
-                          <button
-                            className="admin-action-btn admin-action-btn--delete"
-                            onClick={() => confirmDelete(p.id)}
-                          >
-                            <svg
-                              width="14"
-                              height="14"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
+                              <option value="">— Select —</option>
+                              {sections.map((s) => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              className="admin-cell-input admin-cell-input--sm"
+                              type="number"
+                              value={editRow.price}
+                              onChange={(e) => setEditRow((r) => ({ ...r, price: e.target.value }))}
+                              min="0"
+                            />
+                          </td>
+                          <td>
+                            <input
+                              className="admin-cell-input admin-cell-input--sm"
+                              type="number"
+                              value={editRow.stock}
+                              onChange={(e) => setEditRow((r) => ({ ...r, stock: e.target.value }))}
+                              min="0"
+                            />
+                          </td>
+                          <td>
+                            <select
+                              className="admin-cell-select"
+                              value={editRow.badge || ""}
+                              onChange={(e) => setEditRow((r) => ({ ...r, badge: e.target.value || null }))}
                             >
-                              <polyline points="3 6 5 6 21 6" />
-                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                              <path d="M10 11v6" />
-                              <path d="M14 11v6" />
-                              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                            </svg>
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ),
-                  )}
-                </tbody>
-              </table>
+                              {badges.map((b) => <option key={b} value={b}>{b || "None"}</option>)}
+                            </select>
+                          </td>
+                          <td className="admin-table__actions">
+                            <button className="admin-action-btn admin-action-btn--save" onClick={saveEdit}>Save</button>
+                            <button className="admin-action-btn admin-action-btn--cancel" onClick={cancelEdit}>Cancel</button>
+                          </td>
+                        </tr>
+                      ) : (
+                        <tr key={p.id} className="admin-table__row">
+                          <td className="admin-table__name">{p.name}</td>
+                          <td><span className="admin-cat-tag">{p.category}</span></td>
+                          <td className="admin-table__section">{p.section}</td>
+                          <td className="admin-table__price">{formatNpr(p.price)}</td>
+                          <td>{stockBadge(p.stock)}</td>
+                          <td>
+                            {p.badge ? (
+                              <span className={`admin-badge-tag badge-${p.badge.toLowerCase()}`}>{p.badge}</span>
+                            ) : (
+                              <span className="admin-table__none">—</span>
+                            )}
+                          </td>
+                          <td className="admin-table__actions">
+                            <button className="admin-action-btn admin-action-btn--edit" onClick={() => startEdit(p)}>
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                              </svg>
+                              Edit
+                            </button>
+                            <button className="admin-action-btn admin-action-btn--delete" onClick={() => confirmDelete(p.id)}>
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="3 6 5 6 21 6" />
+                                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                                <path d="M10 11v6" />
+                                <path d="M14 11v6" />
+                                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                              </svg>
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    )}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         )}
@@ -1044,22 +697,10 @@ export default function Admin() {
 
       {/* ── Delete confirm modal ── */}
       {deleteConfirm && (
-        <div
-          className="admin-modal-overlay"
-          onClick={() => setDeleteConfirm(null)}
-        >
+        <div className="admin-modal-overlay" onClick={() => setDeleteConfirm(null)}>
           <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
             <div className="admin-modal__icon">
-              <svg
-                width="28"
-                height="28"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="3 6 5 6 21 6" />
                 <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
                 <path d="M10 11v6" />
@@ -1070,15 +711,8 @@ export default function Admin() {
             <h3 className="admin-modal__title">Delete Product?</h3>
             <p className="admin-modal__sub">This action cannot be undone.</p>
             <div className="admin-modal__actions">
-              <button
-                className="admin-btn-ghost"
-                onClick={() => setDeleteConfirm(null)}
-              >
-                Cancel
-              </button>
-              <button className="admin-btn-danger" onClick={doDelete}>
-                Yes, Delete
-              </button>
+              <button className="admin-btn-ghost" onClick={() => setDeleteConfirm(null)}>Cancel</button>
+              <button className="admin-btn-danger" onClick={doDelete}>Yes, Delete</button>
             </div>
           </div>
         </div>
@@ -1086,35 +720,15 @@ export default function Admin() {
 
       {/* ── Toast ── */}
       {toast && (
-        <div
-          className={`admin-toast${toast.type === "warning" ? " admin-toast--warning" : ""}`}
-        >
+        <div className={`admin-toast${toast.type === "warning" ? " admin-toast--warning" : ""}`}>
           {toast.type === "warning" ? (
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
               <line x1="12" y1="9" x2="12" y2="13" />
               <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
           ) : (
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="20 6 9 17 4 12" />
             </svg>
           )}
