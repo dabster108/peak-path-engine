@@ -1,7 +1,7 @@
 # shikharOutdoor\shop\serializers.py
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from .models import CustomUser
+from .models import CustomUser, Product, Section, Badge, Category
 import re
 
 
@@ -75,3 +75,64 @@ class LoginSerializer(serializers.Serializer):
 
 class GoogleAuthSerializer(serializers.Serializer):
     token = serializers.CharField()
+
+class ProductSerializer(serializers.ModelSerializer):
+    # Read as string names, write as string names
+    category = serializers.CharField(source='category.name', allow_null=True, required=False)
+    section  = serializers.CharField(source='section.name')
+    badge    = serializers.CharField(source='badge.name', allow_null=True, required=False)
+
+    class Meta:
+        model = Product
+        fields = ("id", "name", "category", "section", "badge", "price", "stock")
+
+    def _get_or_create_related(self, model, name):
+        if not name:
+            return None
+        obj, _ = model.objects.get_or_create(name=name)
+        return obj
+
+    def create(self, validated_data):
+        category_name = (validated_data.pop('category', None) or {}).get('name')
+        section_name  = (validated_data.pop('section', {})).get('name')
+        badge_name    = (validated_data.pop('badge', None) or {}).get('name')
+
+        return Product.objects.create(
+            category=self._get_or_create_related(Category, category_name),
+            section=self._get_or_create_related(Section, section_name),
+            badge=self._get_or_create_related(Badge, badge_name),
+            **validated_data,
+        )
+
+    def update(self, instance, validated_data):
+        category_name = (validated_data.pop('category', None) or {}).get('name')
+        section_name  = (validated_data.pop('section', {}) or {}).get('name')
+        badge_name    = (validated_data.pop('badge', None) or {}).get('name')
+
+        if category_name is not None:
+            instance.category = self._get_or_create_related(Category, category_name)
+        if section_name is not None:
+            instance.section = self._get_or_create_related(Section, section_name)
+        if badge_name is not None:
+            instance.badge = self._get_or_create_related(Badge, badge_name)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
+    
+
+class CategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = ("id", "name")
+
+class SectionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Section
+        fields = ("id", "name")
+
+class BadgeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Badge
+        fields = ("id", "name")

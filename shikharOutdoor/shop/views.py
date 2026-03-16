@@ -15,10 +15,14 @@ from google.auth.transport import requests
 
 from django.conf import settings
 
-from .models import CustomUser
+from .models import CustomUser, Product, Section, Badge, Category
 from .serializers import (
+    BadgeSerializer,
+    CategorySerializer,
+    ProductSerializer,
     RegisterSerializer,
     LoginSerializer,
+    SectionSerializer,
     UserSerializer,
     GoogleAuthSerializer,
 )
@@ -106,3 +110,34 @@ class ProfileView(generics.RetrieveAPIView):
 
     def get_object(self):
         return self.request.user
+    
+class AddProductView(generics.CreateAPIView):
+    serializer_class = ProductSerializer
+    permission_classes = [IsAuthenticated]
+
+
+class ProductListView(generics.ListAPIView):
+    serializer_class = ProductSerializer
+    permission_classes = [AllowAny]
+    queryset = Product.objects.all()
+
+
+class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = ProductSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = Product.objects.all()
+
+class CategoryListView(generics.ListAPIView):
+    serializer_class = CategorySerializer
+    permission_classes = [AllowAny]
+    queryset = Category.objects.all()
+
+class SectionListView(generics.ListAPIView):
+    serializer_class = SectionSerializer
+    permission_classes = [AllowAny]
+    queryset = Section.objects.all()
+
+class BadgeListView(generics.ListAPIView):
+    serializer_class = BadgeSerializer
+    permission_classes = [AllowAny]
+    queryset = Badge.objects.all()
