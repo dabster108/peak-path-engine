@@ -245,23 +245,59 @@
 }
 .promise-banner__inner {
   display: grid;
-  grid-template-columns: 1fr 380px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 380px);
   gap: 4rem;
   align-items: center;
 }
-.promise-banner__text p {
+.promise-banner__locator {
+  width: 100%;
+  max-width: 560px;
+  justify-self: start;
+  border-radius: 30px;
+  overflow: hidden;
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0.03)
+  );
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+}
+
+.promise-banner__map-wrap {
+  height: 220px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.promise-banner__map-wrap iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
+.promise-banner__map-content {
+  padding: 1.2rem 1.35rem 1.3rem;
+}
+
+.promise-banner__map-content .section-heading {
+  margin-top: 0.7rem;
+}
+
+.promise-banner__map-content p {
   color: rgba(255, 255, 255, 0.7);
   margin: 1.25rem 0 2rem;
-  max-width: 480px;
+  max-width: 640px;
   font-size: 1.05rem;
   line-height: 1.7;
 }
 .promise-banner__btns {
   display: flex;
-  gap: 1rem;
+  gap: 0.75rem;
   flex-wrap: wrap;
 }
 .promise-banner__visual {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -278,6 +314,37 @@
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+.promise-orbit {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px dashed rgba(217, 119, 6, 0.35);
+  pointer-events: none;
+}
+
+.promise-orbit--one {
+  width: 300px;
+  height: 300px;
+  animation: pulseOrbit 4.5s ease-in-out infinite;
+}
+
+.promise-orbit--two {
+  width: 360px;
+  height: 360px;
+  animation: pulseOrbit 4.5s ease-in-out infinite 0.9s;
+}
+
+@keyframes pulseOrbit {
+  0%,
+  100% {
+    transform: scale(0.96);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.03);
+    opacity: 0.7;
   }
 }
 
@@ -417,9 +484,7 @@
   }
   .promise-banner__inner {
     grid-template-columns: 1fr;
-  }
-  .promise-banner__visual {
-    display: none;
+    gap: 2.4rem;
   }
   .ugc-grid {
     grid-template-columns: repeat(3, 1fr);
@@ -445,6 +510,16 @@
   }
   .hero__heading {
     letter-spacing: -0.01em;
+  }
+  .promise-banner__map-wrap {
+    height: 220px;
+  }
+  .promise-banner__map-content {
+    padding: 1.2rem 1.1rem 1.25rem;
+  }
+  .promise-orbit--one,
+  .promise-orbit--two {
+    display: none;
   }
 }
 @media (max-width: 480px) {

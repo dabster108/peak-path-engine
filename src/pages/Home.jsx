@@ -260,41 +260,60 @@ export default function Home() {
         </svg>
       </div>
 
-      {/* ====== SHIKHAR PROMISE BANNER ====== */}
+      {/* ====== STORE LOCATOR + PROMISE ====== */}
       <section className="promise-banner">
         <div className="container">
           <div className="promise-banner__inner">
-            <div className="promise-banner__text">
-              <span
-                className="section-label"
-                style={{ color: "rgba(255,255,255,0.6)" }}
-              >
-                The SHIKHAR Promise
-              </span>
-              <div className="heading-reveal reveal">
-                <h2 className="section-heading light heading-reveal-inner">
+            <div
+              className="promise-banner__locator reveal-scale"
+              style={{ transitionDelay: "0.1s" }}
+            >
+              <div className="promise-banner__map-wrap">
+                <iframe
+                  title="Shikhar Store Location"
+                  src="https://www.google.com/maps?q=27.7153902,85.3123293&z=16&output=embed"
+                  loading="lazy"
+                  allowFullScreen
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              </div>
+              <div className="promise-banner__map-content">
+                <span
+                  className="section-label"
+                  style={{ color: "rgba(255,255,255,0.6)" }}
+                >
+                  Store Locator
+                </span>
+                <h2 className="section-heading light">
                   Less Waste.
                   <br />
                   More Adventure.
                 </h2>
-              </div>
-              <p className="reveal" style={{ transitionDelay: "0.2s" }}>
-                Every piece we make is built to last, repaired when it wears,
-                and renewed before it retires. Because the mountains deserve
-                better.
-              </p>
-              <div
-                className="promise-banner__btns reveal"
-                style={{ transitionDelay: "0.3s" }}
-              >
-                <button className="btn btn-amber">Shop Renewed</button>
-                <button className="btn btn-outline-light">Trade In</button>
+                <p>
+                  Every piece we make is built to last, repaired when it wears,
+                  and renewed before it retires. Because the mountains deserve
+                  better.
+                </p>
+                <div className="promise-banner__btns">
+                  <button className="btn btn-amber">Shop Renewed</button>
+                  <button className="btn btn-outline-light">Trade In</button>
+                  <a
+                    className="btn btn-outline-light"
+                    href="https://www.google.com/maps/dir/?api=1&destination=27.7153902,85.3123293"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Get Directions
+                  </a>
+                </div>
               </div>
             </div>
             <div
               className="promise-banner__visual reveal-scale"
               style={{ transitionDelay: "0.15s" }}
             >
+              <span className="promise-orbit promise-orbit--one" />
+              <span className="promise-orbit promise-orbit--two" />
               <svg
                 viewBox="0 0 400 400"
                 fill="none"
