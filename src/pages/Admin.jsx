@@ -11,7 +11,22 @@ const emptyForm = () => ({
   stock: "",
   badge: "",
   section: "",
+  imageFile: null,
+  imagePreview: "",
 });
+
+const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const DEFAULT_CATEGORIES = ["Men's", "Women's", "Unisex"];
+const DEFAULT_SECTIONS = [
+  "Footwear",
+  "Backpacks",
+  "Bottles",
+  "Equipment",
+  "Goretex",
+];
+const DEFAULT_BADGES = ["", "New", "Sale", "Limited"];
+
+const uniqueNonEmpty = (items) => [...new Set(items.filter(Boolean))];
 
 /* ───── stat card ───── */
 function StatCard({ icon, label, value, sub, color, delay }) {
@@ -33,6 +48,7 @@ export default function Admin() {
   const [tab, setTab] = useState("dashboard");
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(true);
+  const [productImageMap, setProductImageMap] = useState({});
 
   /* ── DB-driven dropdowns ── */
   const [categories, setCategories] = useState([]);
@@ -47,11 +63,56 @@ export default function Admin() {
   const [showAdd, setShowAdd] = useState(false);
   const [addForm, setAddForm] = useState(emptyForm());
   const [addError, setAddError] = useState("");
+  const [adminProfile, setAdminProfile] = useState(null);
+  const [profileForm, setProfileForm] = useState({
+    username: "",
+    first_name: "",
+    last_name: "",
+    email: "",
+  });
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    old_password: "",
+    new_password: "",
+    confirm_password: "",
+  });
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersSearch, setUsersSearch] = useState("");
   const [toast, setToast] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const navigate = useNavigate();
   const toastTimer = useRef(null);
+
+  const handleImageSelect = (event) => {
+    const file = event.target.files && event.target.files[0];
+    if (!file) {
+      setAddForm((f) => ({ ...f, imageFile: null, imagePreview: "" }));
+      return;
+    }
+
+    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+      setAddError("Please select a JPG, PNG, or WebP image.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setAddForm((f) => ({
+        ...f,
+        imageFile: file,
+        imagePreview: typeof reader.result === "string" ? reader.result : "",
+      }));
+      setAddError("");
+    };
+    reader.onerror = () => {
+      setAddError("Could not read image file. Please try another image.");
+    };
+    reader.readAsDataURL(file);
+  };
 
   /* ── toast helper (defined before useEffects that use it) ── */
   const showToast = (msg, type = "success") => {
@@ -67,13 +128,31 @@ export default function Admin() {
       .then((res) => {
         const canAccess = Boolean(
           res.data?.is_superuser ||
-            res.data?.is_staff ||
-            res.data?.role === "admin",
+          res.data?.is_staff ||
+          res.data?.role === "admin",
         );
+        setAdminProfile(res.data);
+        setProfileForm({
+          username: res.data?.username || "",
+          first_name: res.data?.first_name || "",
+          last_name: res.data?.last_name || "",
+          email: res.data?.email || "",
+        });
         if (!canAccess) navigate("/");
       })
       .catch(() => navigate("/"));
   }, [navigate]);
+
+  useEffect(() => {
+    if (tab !== "users") return;
+
+    setUsersLoading(true);
+    api
+      .get("users/")
+      .then((res) => setUsers(res.data))
+      .catch(() => showToast("Failed to load users.", "warning"))
+      .finally(() => setUsersLoading(false));
+  }, [tab]);
 
   /* ── load categories, sections, badges from DB ── */
   useEffect(() => {
@@ -83,12 +162,43 @@ export default function Admin() {
       api.get("badges/"),
     ])
       .then(([catRes, secRes, badRes]) => {
-        setCategories(catRes.data.map((c) => c.name));
-        setSections(secRes.data.map((s) => s.name));
-        setBadges(["", ...badRes.data.map((b) => b.name)]);
+        const apiCategories = uniqueNonEmpty(catRes.data.map((c) => c.name));
+        const apiSections = uniqueNonEmpty(secRes.data.map((s) => s.name));
+        const apiBadges = uniqueNonEmpty(badRes.data.map((b) => b.name));
+
+        setCategories(
+          uniqueNonEmpty([...DEFAULT_CATEGORIES, ...apiCategories]),
+        );
+        setSections(uniqueNonEmpty([...DEFAULT_SECTIONS, ...apiSections]));
+        setBadges(["", ...uniqueNonEmpty([...DEFAULT_BADGES, ...apiBadges])]);
       })
-      .catch(() => showToast("Failed to load filters.", "warning"));
+      .catch(() => {
+        setCategories(DEFAULT_CATEGORIES);
+        setSections(DEFAULT_SECTIONS);
+        setBadges(DEFAULT_BADGES);
+        showToast("Using default dropdown options.", "warning");
+      });
   }, []);
+
+  /* ── keep dropdowns populated using loaded products too ── */
+  useEffect(() => {
+    if (!products.length) return;
+
+    const productCategories = uniqueNonEmpty(products.map((p) => p.category));
+    const productSections = uniqueNonEmpty(products.map((p) => p.section));
+    const productBadges = uniqueNonEmpty(products.map((p) => p.badge));
+
+    setCategories((prev) =>
+      uniqueNonEmpty([...DEFAULT_CATEGORIES, ...prev, ...productCategories]),
+    );
+    setSections((prev) =>
+      uniqueNonEmpty([...DEFAULT_SECTIONS, ...prev, ...productSections]),
+    );
+    setBadges((prev) => [
+      "",
+      ...uniqueNonEmpty([...DEFAULT_BADGES, ...prev, ...productBadges]),
+    ]);
+  }, [products]);
 
   /* ── load products from API ── */
   useEffect(() => {
@@ -141,7 +251,7 @@ export default function Admin() {
         stock: Number(editRow.stock),
       });
       setProducts((prev) =>
-        prev.map((p) => (p.id === editingId ? res.data : p))
+        prev.map((p) => (p.id === editingId ? res.data : p)),
       );
       setEditingId(null);
       showToast("Product updated.");
@@ -152,10 +262,16 @@ export default function Admin() {
 
   /* ── delete ── */
   const confirmDelete = (id) => setDeleteConfirm(id);
+
   const doDelete = async () => {
     try {
       await api.delete(`products/${deleteConfirm}/`);
       setProducts((prev) => prev.filter((p) => p.id !== deleteConfirm));
+      setProductImageMap((prev) => {
+        const next = { ...prev };
+        delete next[deleteConfirm];
+        return next;
+      });
       setDeleteConfirm(null);
       showToast("Product deleted.", "warning");
     } catch {
@@ -174,11 +290,21 @@ export default function Admin() {
       setAddError("Enter a valid price.");
       return;
     }
+    if (!addForm.category) {
+      setAddError("Please select a category.");
+      return;
+    }
+    if (!addForm.section) {
+      setAddError("Please select a section.");
+      return;
+    }
     if (addForm.stock === "" || isNaN(Number(addForm.stock))) {
       setAddError("Enter a valid stock quantity.");
       return;
     }
+
     try {
+      const selectedImagePreview = addForm.imagePreview;
       const res = await api.post("add-product/", {
         name: addForm.name.trim(),
         category: addForm.category,
@@ -187,7 +313,26 @@ export default function Admin() {
         price: Number(addForm.price),
         stock: Number(addForm.stock),
       });
-      setProducts((prev) => [res.data, ...prev]);
+
+      if (selectedImagePreview && res.data?.id) {
+        setProductImageMap((prev) => ({
+          ...prev,
+          [res.data.id]: selectedImagePreview,
+        }));
+      }
+
+      const newProduct = {
+        ...res.data,
+        imagePreview: selectedImagePreview,
+      };
+      try {
+        const productsRes = await api.get("products/");
+        setProducts(productsRes.data);
+      } catch {
+        setProducts((prev) => [newProduct, ...prev]);
+      }
+      setFilterCat("All");
+      setSearch("");
       setAddForm(emptyForm());
       setAddError("");
       setShowAdd(false);
@@ -206,6 +351,90 @@ export default function Admin() {
     return <span className="stock-badge ok">{stock}</span>;
   };
 
+  const getProductImage = (product) => {
+    const mappedPreview = productImageMap[product.id];
+    if (mappedPreview) return mappedPreview;
+    if (typeof product.imagePreview === "string") return product.imagePreview;
+    if (typeof product.image === "string") return product.image;
+    return "";
+  };
+
+  const handleProfileSave = async () => {
+    setProfileSaving(true);
+    try {
+      const res = await api.patch("profile/", profileForm);
+      setAdminProfile((prev) => ({ ...prev, ...res.data }));
+      showToast("Profile settings updated.");
+    } catch {
+      showToast("Failed to update profile.", "warning");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const getApiErrorMessage = (error, fallback) => {
+    const data = error?.response?.data;
+    if (typeof data === "string") return data;
+    if (data?.detail) return data.detail;
+    if (data && typeof data === "object") {
+      const firstValue = Object.values(data)[0];
+      if (Array.isArray(firstValue) && firstValue.length > 0)
+        return String(firstValue[0]);
+      if (typeof firstValue === "string") return firstValue;
+    }
+    return fallback;
+  };
+
+  const handlePasswordChange = async () => {
+    if (
+      !passwordForm.old_password ||
+      !passwordForm.new_password ||
+      !passwordForm.confirm_password
+    ) {
+      setPasswordError("Please fill all password fields.");
+      return;
+    }
+
+    if (passwordForm.new_password !== passwordForm.confirm_password) {
+      setPasswordError("New password and confirm password do not match.");
+      return;
+    }
+
+    setPasswordSaving(true);
+    setPasswordError("");
+    try {
+      const res = await api.post("change-password/", passwordForm);
+      setPasswordForm({
+        old_password: "",
+        new_password: "",
+        confirm_password: "",
+      });
+      showToast(res.data?.detail || "Password updated successfully.");
+    } catch (error) {
+      setPasswordError(getApiErrorMessage(error, "Failed to update password."));
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
+  const filteredUsers = users.filter((u) => {
+    const query = usersSearch.toLowerCase().trim();
+    if (!query) return true;
+    return (
+      (u.username || "").toLowerCase().includes(query) ||
+      (u.email || "").toLowerCase().includes(query) ||
+      `${u.first_name || ""} ${u.last_name || ""}`.toLowerCase().includes(query)
+    );
+  });
+
+  const topbarTitle =
+    {
+      dashboard: "Dashboard",
+      products: "Products & Stock",
+      users: "Users",
+      profile: "Admin Profile Settings",
+    }[tab] || "Admin";
+
   return (
     <div className="admin-layout">
       {/* ── Sidebar ── */}
@@ -214,7 +443,11 @@ export default function Admin() {
           <Link to="/" className="admin-brand-link">
             <span className="admin-brand-icon">
               <svg width="26" height="26" viewBox="0 0 28 28" fill="none">
-                <polygon points="14,2 26,24 2,24" fill="currentColor" opacity="0.9" />
+                <polygon
+                  points="14,2 26,24 2,24"
+                  fill="currentColor"
+                  opacity="0.9"
+                />
                 <polygon points="14,8 21,24 7,24" fill="white" opacity="0.3" />
               </svg>
             </span>
@@ -226,9 +459,21 @@ export default function Admin() {
         <nav className="admin-sidebar__nav">
           <button
             className={`admin-nav-item${tab === "dashboard" ? " active" : ""}`}
-            onClick={() => { setTab("dashboard"); setSidebarOpen(false); }}
+            onClick={() => {
+              setTab("dashboard");
+              setSidebarOpen(false);
+            }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <rect x="3" y="3" width="7" height="7" rx="1" />
               <rect x="14" y="3" width="7" height="7" rx="1" />
               <rect x="3" y="14" width="7" height="7" rx="1" />
@@ -238,24 +483,100 @@ export default function Admin() {
           </button>
           <button
             className={`admin-nav-item${tab === "products" ? " active" : ""}`}
-            onClick={() => { setTab("products"); setSidebarOpen(false); }}
+            onClick={() => {
+              setTab("products");
+              setSidebarOpen(false);
+            }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
               <line x1="3" y1="6" x2="21" y2="6" />
               <path d="M16 10a4 4 0 0 1-8 0" />
             </svg>
             Products & Stock
           </button>
+          <button
+            className={`admin-nav-item${tab === "users" ? " active" : ""}`}
+            onClick={() => {
+              setTab("users");
+              setSidebarOpen(false);
+            }}
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+            Users
+          </button>
+          <button
+            className={`admin-nav-item${tab === "profile" ? " active" : ""}`}
+            onClick={() => {
+              setTab("profile");
+              setSidebarOpen(false);
+            }}
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.08a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.08a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.08a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+            Profile Settings
+          </button>
           <button className="admin-nav-item admin-nav-item--disabled">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
             </svg>
             Orders
             <span className="admin-nav-soon">Soon</span>
           </button>
           <button className="admin-nav-item admin-nav-item--disabled">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
               <circle cx="9" cy="7" r="4" />
               <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
@@ -268,7 +589,16 @@ export default function Admin() {
 
         <div className="admin-sidebar__footer">
           <Link to="/" className="admin-sidebar-back">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="m15 18-6-6 6-6" />
             </svg>
             Back to Store
@@ -278,7 +608,10 @@ export default function Admin() {
 
       {/* Sidebar overlay (mobile) */}
       {sidebarOpen && (
-        <div className="admin-sidebar-overlay" onClick={() => setSidebarOpen(false)} />
+        <div
+          className="admin-sidebar-overlay"
+          onClick={() => setSidebarOpen(false)}
+        />
       )}
 
       {/* ── Main ── */}
@@ -290,13 +623,21 @@ export default function Admin() {
             onClick={() => setSidebarOpen(true)}
             aria-label="Menu"
           >
-            <span /><span /><span />
+            <span />
+            <span />
+            <span />
           </button>
-          <div className="admin-topbar__title">
-            {tab === "dashboard" ? "Dashboard" : "Products & Stock"}
-          </div>
+          <div className="admin-topbar__title">{topbarTitle}</div>
           <div className="admin-topbar__right">
-            <div className="admin-topbar__avatar">A</div>
+            <button
+              className="admin-topbar__avatar admin-topbar__avatar-btn"
+              onClick={() => setTab("profile")}
+              title="Open profile settings"
+            >
+              {(adminProfile?.first_name || adminProfile?.username || "A")
+                .charAt(0)
+                .toUpperCase()}
+            </button>
           </div>
         </header>
 
@@ -312,7 +653,16 @@ export default function Admin() {
               <StatCard
                 delay="0ms"
                 icon={
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
                     <line x1="3" y1="6" x2="21" y2="6" />
                     <path d="M16 10a4 4 0 0 1-8 0" />
@@ -326,7 +676,16 @@ export default function Admin() {
               <StatCard
                 delay="80ms"
                 icon={
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                     <line x1="12" y1="9" x2="12" y2="13" />
                     <line x1="12" y1="17" x2="12.01" y2="17" />
@@ -340,7 +699,16 @@ export default function Admin() {
               <StatCard
                 delay="160ms"
                 icon={
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <circle cx="12" cy="12" r="10" />
                     <line x1="12" y1="8" x2="12" y2="12" />
                     <line x1="12" y1="16" x2="12.01" y2="16" />
@@ -354,13 +722,26 @@ export default function Admin() {
               <StatCard
                 delay="240ms"
                 icon={
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <line x1="12" y1="1" x2="12" y2="23" />
                     <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
                   </svg>
                 }
                 label="Stock Value"
-                value={productsLoading ? "…" : `NPR ${(totalValue / 100000).toFixed(1)}L`}
+                value={
+                  productsLoading
+                    ? "…"
+                    : `NPR ${(totalValue / 100000).toFixed(1)}L`
+                }
                 sub="Total inventory worth"
                 color="linear-gradient(135deg,#22c55e,#16a34a)"
               />
@@ -376,21 +757,32 @@ export default function Admin() {
                 {productsLoading ? (
                   <div className="admin-dash-panel__empty">Loading…</div>
                 ) : products.filter((p) => p.stock === 0).length === 0 ? (
-                  <div className="admin-dash-panel__empty">All products are stocked ✓</div>
+                  <div className="admin-dash-panel__empty">
+                    All products are stocked ✓
+                  </div>
                 ) : (
                   <ul className="admin-dash-panel__list">
-                    {products.filter((p) => p.stock === 0).map((p) => (
-                      <li key={p.id} className="admin-dash-panel__item">
-                        <span className="admin-dash-panel__name">{p.name}</span>
-                        <span className="admin-dash-panel__cat">{p.category}</span>
-                        <button
-                          className="admin-dash-panel__btn"
-                          onClick={() => { setTab("products"); setTimeout(() => startEdit(p), 100); }}
-                        >
-                          Restock
-                        </button>
-                      </li>
-                    ))}
+                    {products
+                      .filter((p) => p.stock === 0)
+                      .map((p) => (
+                        <li key={p.id} className="admin-dash-panel__item">
+                          <span className="admin-dash-panel__name">
+                            {p.name}
+                          </span>
+                          <span className="admin-dash-panel__cat">
+                            {p.category}
+                          </span>
+                          <button
+                            className="admin-dash-panel__btn"
+                            onClick={() => {
+                              setTab("products");
+                              setTimeout(() => startEdit(p), 100);
+                            }}
+                          >
+                            Restock
+                          </button>
+                        </li>
+                      ))}
                   </ul>
                 )}
               </div>
@@ -402,22 +794,34 @@ export default function Admin() {
                 </div>
                 {productsLoading ? (
                   <div className="admin-dash-panel__empty">Loading…</div>
-                ) : products.filter((p) => p.stock > 0 && p.stock <= 8).length === 0 ? (
-                  <div className="admin-dash-panel__empty">No low-stock items ✓</div>
+                ) : products.filter((p) => p.stock > 0 && p.stock <= 8)
+                    .length === 0 ? (
+                  <div className="admin-dash-panel__empty">
+                    No low-stock items ✓
+                  </div>
                 ) : (
                   <ul className="admin-dash-panel__list">
-                    {products.filter((p) => p.stock > 0 && p.stock <= 8).map((p) => (
-                      <li key={p.id} className="admin-dash-panel__item">
-                        <span className="admin-dash-panel__name">{p.name}</span>
-                        <span className="admin-dash-panel__stock">{p.stock} left</span>
-                        <button
-                          className="admin-dash-panel__btn"
-                          onClick={() => { setTab("products"); setTimeout(() => startEdit(p), 100); }}
-                        >
-                          Edit
-                        </button>
-                      </li>
-                    ))}
+                    {products
+                      .filter((p) => p.stock > 0 && p.stock <= 8)
+                      .map((p) => (
+                        <li key={p.id} className="admin-dash-panel__item">
+                          <span className="admin-dash-panel__name">
+                            {p.name}
+                          </span>
+                          <span className="admin-dash-panel__stock">
+                            {p.stock} left
+                          </span>
+                          <button
+                            className="admin-dash-panel__btn"
+                            onClick={() => {
+                              setTab("products");
+                              setTimeout(() => startEdit(p), 100);
+                            }}
+                          >
+                            Edit
+                          </button>
+                        </li>
+                      ))}
                   </ul>
                 )}
               </div>
@@ -431,13 +835,27 @@ export default function Admin() {
             <div className="admin-section-header">
               <div>
                 <h2 className="admin-section-title">Products & Stock</h2>
-                <p className="admin-section-sub">{products.length} total products</p>
+                <p className="admin-section-sub">
+                  {products.length} total products
+                </p>
               </div>
               <button
                 className="admin-add-btn"
-                onClick={() => { setShowAdd(true); setAddError(""); }}
+                onClick={() => {
+                  setShowAdd(true);
+                  setAddError("");
+                }}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
@@ -452,9 +870,19 @@ export default function Admin() {
                   <span>New Product</span>
                   <button
                     className="admin-add-form__close"
-                    onClick={() => { setShowAdd(false); setAddError(""); }}
+                    onClick={() => {
+                      setShowAdd(false);
+                      setAddError("");
+                    }}
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                    >
                       <line x1="18" y1="6" x2="6" y2="18" />
                       <line x1="6" y1="6" x2="18" y2="18" />
                     </svg>
@@ -465,7 +893,9 @@ export default function Admin() {
                     <label>Name *</label>
                     <input
                       value={addForm.name}
-                      onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))}
+                      onChange={(e) =>
+                        setAddForm((f) => ({ ...f, name: e.target.value }))
+                      }
                       placeholder="Product name"
                     />
                   </div>
@@ -473,20 +903,32 @@ export default function Admin() {
                     <label>Category *</label>
                     <select
                       value={addForm.category}
-                      onChange={(e) => setAddForm((f) => ({ ...f, category: e.target.value }))}
+                      onChange={(e) =>
+                        setAddForm((f) => ({ ...f, category: e.target.value }))
+                      }
                     >
                       <option value="">— Select —</option>
-                      {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                      {categories.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div className="admin-field">
                     <label>Section</label>
                     <select
                       value={addForm.section}
-                      onChange={(e) => setAddForm((f) => ({ ...f, section: e.target.value }))}
+                      onChange={(e) =>
+                        setAddForm((f) => ({ ...f, section: e.target.value }))
+                      }
                     >
                       <option value="">— Select —</option>
-                      {sections.map((s) => <option key={s} value={s}>{s}</option>)}
+                      {sections.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div className="admin-field">
@@ -494,7 +936,9 @@ export default function Admin() {
                     <input
                       type="number"
                       value={addForm.price}
-                      onChange={(e) => setAddForm((f) => ({ ...f, price: e.target.value }))}
+                      onChange={(e) =>
+                        setAddForm((f) => ({ ...f, price: e.target.value }))
+                      }
                       placeholder="e.g. 12999"
                       min="0"
                     />
@@ -504,7 +948,9 @@ export default function Admin() {
                     <input
                       type="number"
                       value={addForm.stock}
-                      onChange={(e) => setAddForm((f) => ({ ...f, stock: e.target.value }))}
+                      onChange={(e) =>
+                        setAddForm((f) => ({ ...f, stock: e.target.value }))
+                      }
                       placeholder="e.g. 25"
                       min="0"
                     />
@@ -513,15 +959,70 @@ export default function Admin() {
                     <label>Badge</label>
                     <select
                       value={addForm.badge}
-                      onChange={(e) => setAddForm((f) => ({ ...f, badge: e.target.value }))}
+                      onChange={(e) =>
+                        setAddForm((f) => ({ ...f, badge: e.target.value }))
+                      }
                     >
-                      {badges.map((b) => <option key={b} value={b}>{b || "None"}</option>)}
+                      {badges.map((b) => (
+                        <option key={b} value={b}>
+                          {b || "None"}
+                        </option>
+                      ))}
                     </select>
+                  </div>
+                  <div className="admin-field admin-field--image">
+                    <label>Product Image</label>
+                    <div className="admin-image-upload">
+                      <input
+                        id="admin-product-image"
+                        className="admin-image-input"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={handleImageSelect}
+                      />
+                      <label
+                        className="admin-image-button"
+                        htmlFor="admin-product-image"
+                      >
+                        Choose Image
+                      </label>
+                      <span className="admin-image-hint">
+                        JPG, PNG, or WebP
+                      </span>
+                    </div>
+                    {addForm.imagePreview && (
+                      <div className="admin-image-preview">
+                        <img
+                          src={addForm.imagePreview}
+                          alt={`${addForm.name || "New product"} preview`}
+                        />
+                        <button
+                          type="button"
+                          className="admin-image-preview__remove"
+                          onClick={() =>
+                            setAddForm((f) => ({
+                              ...f,
+                              imageFile: null,
+                              imagePreview: "",
+                            }))
+                          }
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
                 {addError && <div className="admin-form-error">{addError}</div>}
                 <div className="admin-add-form__actions">
-                  <button className="admin-btn-ghost" onClick={() => { setShowAdd(false); setAddError(""); }}>
+                  <button
+                    className="admin-btn-ghost"
+                    onClick={() => {
+                      setShowAdd(false);
+                      setAddError("");
+                      setAddForm(emptyForm());
+                    }}
+                  >
                     Cancel
                   </button>
                   <button className="admin-btn-primary" onClick={handleAdd}>
@@ -534,7 +1035,14 @@ export default function Admin() {
             {/* Filters */}
             <div className="admin-filters">
               <div className="admin-search-wrap">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <circle cx="11" cy="11" r="8" />
                   <path d="m21 21-4.35-4.35" />
                 </svg>
@@ -601,27 +1109,50 @@ export default function Admin() {
                             <input
                               className="admin-cell-input"
                               value={editRow.name}
-                              onChange={(e) => setEditRow((r) => ({ ...r, name: e.target.value }))}
+                              onChange={(e) =>
+                                setEditRow((r) => ({
+                                  ...r,
+                                  name: e.target.value,
+                                }))
+                              }
                             />
                           </td>
                           <td>
                             <select
                               className="admin-cell-select"
                               value={editRow.category || ""}
-                              onChange={(e) => setEditRow((r) => ({ ...r, category: e.target.value }))}
+                              onChange={(e) =>
+                                setEditRow((r) => ({
+                                  ...r,
+                                  category: e.target.value,
+                                }))
+                              }
                             >
                               <option value="">— Select —</option>
-                              {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                              {categories.map((c) => (
+                                <option key={c} value={c}>
+                                  {c}
+                                </option>
+                              ))}
                             </select>
                           </td>
                           <td>
                             <select
                               className="admin-cell-select"
                               value={editRow.section || ""}
-                              onChange={(e) => setEditRow((r) => ({ ...r, section: e.target.value }))}
+                              onChange={(e) =>
+                                setEditRow((r) => ({
+                                  ...r,
+                                  section: e.target.value,
+                                }))
+                              }
                             >
                               <option value="">— Select —</option>
-                              {sections.map((s) => <option key={s} value={s}>{s}</option>)}
+                              {sections.map((s) => (
+                                <option key={s} value={s}>
+                                  {s}
+                                </option>
+                              ))}
                             </select>
                           </td>
                           <td>
@@ -629,7 +1160,12 @@ export default function Admin() {
                               className="admin-cell-input admin-cell-input--sm"
                               type="number"
                               value={editRow.price}
-                              onChange={(e) => setEditRow((r) => ({ ...r, price: e.target.value }))}
+                              onChange={(e) =>
+                                setEditRow((r) => ({
+                                  ...r,
+                                  price: e.target.value,
+                                }))
+                              }
                               min="0"
                             />
                           </td>
@@ -638,7 +1174,12 @@ export default function Admin() {
                               className="admin-cell-input admin-cell-input--sm"
                               type="number"
                               value={editRow.stock}
-                              onChange={(e) => setEditRow((r) => ({ ...r, stock: e.target.value }))}
+                              onChange={(e) =>
+                                setEditRow((r) => ({
+                                  ...r,
+                                  stock: e.target.value,
+                                }))
+                              }
                               min="0"
                             />
                           </td>
@@ -646,40 +1187,108 @@ export default function Admin() {
                             <select
                               className="admin-cell-select"
                               value={editRow.badge || ""}
-                              onChange={(e) => setEditRow((r) => ({ ...r, badge: e.target.value || null }))}
+                              onChange={(e) =>
+                                setEditRow((r) => ({
+                                  ...r,
+                                  badge: e.target.value || null,
+                                }))
+                              }
                             >
-                              {badges.map((b) => <option key={b} value={b}>{b || "None"}</option>)}
+                              {badges.map((b) => (
+                                <option key={b} value={b}>
+                                  {b || "None"}
+                                </option>
+                              ))}
                             </select>
                           </td>
                           <td className="admin-table__actions">
-                            <button className="admin-action-btn admin-action-btn--save" onClick={saveEdit}>Save</button>
-                            <button className="admin-action-btn admin-action-btn--cancel" onClick={cancelEdit}>Cancel</button>
+                            <button
+                              className="admin-action-btn admin-action-btn--save"
+                              onClick={saveEdit}
+                            >
+                              Save
+                            </button>
+                            <button
+                              className="admin-action-btn admin-action-btn--cancel"
+                              onClick={cancelEdit}
+                            >
+                              Cancel
+                            </button>
                           </td>
                         </tr>
                       ) : (
                         <tr key={p.id} className="admin-table__row">
-                          <td className="admin-table__name">{p.name}</td>
-                          <td><span className="admin-cat-tag">{p.category}</span></td>
+                          <td>
+                            <div className="admin-table__product-cell">
+                              {getProductImage(p) ? (
+                                <img
+                                  src={getProductImage(p)}
+                                  alt={p.name}
+                                  className="admin-table__thumb"
+                                />
+                              ) : (
+                                <div className="admin-table__thumb admin-table__thumb--placeholder">
+                                  IMG
+                                </div>
+                              )}
+                              <span className="admin-table__name">
+                                {p.name}
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <span className="admin-cat-tag">{p.category}</span>
+                          </td>
                           <td className="admin-table__section">{p.section}</td>
-                          <td className="admin-table__price">{formatNpr(p.price)}</td>
+                          <td className="admin-table__price">
+                            {formatNpr(p.price)}
+                          </td>
                           <td>{stockBadge(p.stock)}</td>
                           <td>
                             {p.badge ? (
-                              <span className={`admin-badge-tag badge-${p.badge.toLowerCase()}`}>{p.badge}</span>
+                              <span
+                                className={`admin-badge-tag badge-${p.badge.toLowerCase()}`}
+                              >
+                                {p.badge}
+                              </span>
                             ) : (
                               <span className="admin-table__none">—</span>
                             )}
                           </td>
                           <td className="admin-table__actions">
-                            <button className="admin-action-btn admin-action-btn--edit" onClick={() => startEdit(p)}>
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <button
+                              className="admin-action-btn admin-action-btn--edit"
+                              onClick={() => startEdit(p)}
+                            >
+                              <svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                               </svg>
                               Edit
                             </button>
-                            <button className="admin-action-btn admin-action-btn--delete" onClick={() => confirmDelete(p.id)}>
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <button
+                              className="admin-action-btn admin-action-btn--delete"
+                              onClick={() => confirmDelete(p.id)}
+                            >
+                              <svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
                                 <polyline points="3 6 5 6 21 6" />
                                 <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
                                 <path d="M10 11v6" />
@@ -690,7 +1299,7 @@ export default function Admin() {
                             </button>
                           </td>
                         </tr>
-                      )
+                      ),
                     )}
                   </tbody>
                 </table>
@@ -698,14 +1307,268 @@ export default function Admin() {
             </div>
           </div>
         )}
+
+        {/* ─── Users Tab ─── */}
+        {tab === "users" && (
+          <div className="admin-content admin-users">
+            <div className="admin-section-header">
+              <div>
+                <h2 className="admin-section-title">Users</h2>
+                <p className="admin-section-sub">
+                  Manage registered user accounts
+                </p>
+              </div>
+            </div>
+
+            <div className="admin-users-toolbar">
+              <div className="admin-search-wrap">
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.35-4.35" />
+                </svg>
+                <input
+                  className="admin-search"
+                  placeholder="Search by username, email, or name"
+                  value={usersSearch}
+                  onChange={(e) => setUsersSearch(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="admin-table-wrap">
+              {usersLoading ? (
+                <div className="admin-table__empty">Loading users…</div>
+              ) : (
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Username</th>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Role</th>
+                      <th>Access</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredUsers.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="admin-table__empty">
+                          No users found.
+                        </td>
+                      </tr>
+                    )}
+                    {filteredUsers.map((u) => (
+                      <tr key={u.id} className="admin-table__row">
+                        <td className="admin-table__name">{u.username}</td>
+                        <td className="admin-table__section">
+                          {`${u.first_name || ""} ${u.last_name || ""}`.trim() ||
+                            "—"}
+                        </td>
+                        <td>{u.email || "—"}</td>
+                        <td>
+                          <span className="admin-cat-tag">
+                            {u.role || "user"}
+                          </span>
+                        </td>
+                        <td>
+                          {u.is_superuser ? (
+                            <span className="admin-badge-tag badge-limited">
+                              Super Admin
+                            </span>
+                          ) : u.is_staff ? (
+                            <span className="admin-badge-tag badge-new">
+                              Staff
+                            </span>
+                          ) : (
+                            <span className="admin-table__none">User</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ─── Profile Tab ─── */}
+        {tab === "profile" && (
+          <div className="admin-content admin-profile">
+            <div className="admin-section-header">
+              <div>
+                <h2 className="admin-section-title">Profile Settings</h2>
+                <p className="admin-section-sub">
+                  Update your admin account details
+                </p>
+              </div>
+            </div>
+
+            <div className="admin-profile-card">
+              <div className="admin-profile-avatar-lg">
+                {(adminProfile?.first_name || adminProfile?.username || "A")
+                  .charAt(0)
+                  .toUpperCase()}
+              </div>
+              <div className="admin-profile-meta">
+                <h3>{adminProfile?.username || "Admin"}</h3>
+                <p>{adminProfile?.email || "No email set"}</p>
+              </div>
+            </div>
+
+            <div className="admin-add-form">
+              <div className="admin-add-form__header">
+                <span>Admin Profile Settings</span>
+              </div>
+              <div className="admin-add-form__grid admin-add-form__grid--profile">
+                <div className="admin-field">
+                  <label>Username</label>
+                  <input
+                    value={profileForm.username}
+                    onChange={(e) =>
+                      setProfileForm((f) => ({
+                        ...f,
+                        username: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="admin-field">
+                  <label>Email</label>
+                  <input
+                    type="email"
+                    value={profileForm.email}
+                    onChange={(e) =>
+                      setProfileForm((f) => ({ ...f, email: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="admin-field">
+                  <label>First Name</label>
+                  <input
+                    value={profileForm.first_name}
+                    onChange={(e) =>
+                      setProfileForm((f) => ({
+                        ...f,
+                        first_name: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="admin-field">
+                  <label>Last Name</label>
+                  <input
+                    value={profileForm.last_name}
+                    onChange={(e) =>
+                      setProfileForm((f) => ({
+                        ...f,
+                        last_name: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <div className="admin-add-form__actions">
+                <button
+                  className="admin-btn-primary"
+                  onClick={handleProfileSave}
+                  disabled={profileSaving}
+                >
+                  {profileSaving ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </div>
+
+            <div className="admin-add-form admin-password-form">
+              <div className="admin-add-form__header">
+                <span>Change Password</span>
+              </div>
+              <div className="admin-add-form__grid admin-add-form__grid--profile">
+                <div className="admin-field">
+                  <label>Current Password</label>
+                  <input
+                    type="password"
+                    value={passwordForm.old_password}
+                    onChange={(e) =>
+                      setPasswordForm((f) => ({
+                        ...f,
+                        old_password: e.target.value,
+                      }))
+                    }
+                    placeholder="Enter current password"
+                  />
+                </div>
+                <div className="admin-field">
+                  <label>New Password</label>
+                  <input
+                    type="password"
+                    value={passwordForm.new_password}
+                    onChange={(e) =>
+                      setPasswordForm((f) => ({
+                        ...f,
+                        new_password: e.target.value,
+                      }))
+                    }
+                    placeholder="Enter new password"
+                  />
+                </div>
+                <div className="admin-field">
+                  <label>Confirm New Password</label>
+                  <input
+                    type="password"
+                    value={passwordForm.confirm_password}
+                    onChange={(e) =>
+                      setPasswordForm((f) => ({
+                        ...f,
+                        confirm_password: e.target.value,
+                      }))
+                    }
+                    placeholder="Confirm new password"
+                  />
+                </div>
+              </div>
+              {passwordError && (
+                <div className="admin-form-error">{passwordError}</div>
+              )}
+              <div className="admin-add-form__actions">
+                <button
+                  className="admin-btn-primary"
+                  onClick={handlePasswordChange}
+                  disabled={passwordSaving}
+                >
+                  {passwordSaving ? "Updating..." : "Update Password"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* ── Delete confirm modal ── */}
       {deleteConfirm && (
-        <div className="admin-modal-overlay" onClick={() => setDeleteConfirm(null)}>
+        <div
+          className="admin-modal-overlay"
+          onClick={() => setDeleteConfirm(null)}
+        >
           <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
             <div className="admin-modal__icon">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                width="28"
+                height="28"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <polyline points="3 6 5 6 21 6" />
                 <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
                 <path d="M10 11v6" />
@@ -716,8 +1579,15 @@ export default function Admin() {
             <h3 className="admin-modal__title">Delete Product?</h3>
             <p className="admin-modal__sub">This action cannot be undone.</p>
             <div className="admin-modal__actions">
-              <button className="admin-btn-ghost" onClick={() => setDeleteConfirm(null)}>Cancel</button>
-              <button className="admin-btn-danger" onClick={doDelete}>Yes, Delete</button>
+              <button
+                className="admin-btn-ghost"
+                onClick={() => setDeleteConfirm(null)}
+              >
+                Cancel
+              </button>
+              <button className="admin-btn-danger" onClick={doDelete}>
+                Yes, Delete
+              </button>
             </div>
           </div>
         </div>
@@ -725,15 +1595,35 @@ export default function Admin() {
 
       {/* ── Toast ── */}
       {toast && (
-        <div className={`admin-toast${toast.type === "warning" ? " admin-toast--warning" : ""}`}>
+        <div
+          className={`admin-toast${toast.type === "warning" ? " admin-toast--warning" : ""}`}
+        >
           {toast.type === "warning" ? (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
               <line x1="12" y1="9" x2="12" y2="13" />
               <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
           ) : (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <polyline points="20 6 9 17 4 12" />
             </svg>
           )}
