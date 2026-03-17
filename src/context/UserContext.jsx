@@ -37,6 +37,11 @@ function buildDisplayName(user) {
   );
 }
 
+function hasAdminAccess(user) {
+  if (!user) return false;
+  return Boolean(user.is_superuser || user.is_staff || user.role === "admin");
+}
+
 const UserContext = createContext(null);
 
 export function UserProvider({ children }) {
@@ -70,6 +75,7 @@ export function UserProvider({ children }) {
       updateUser,
       clearUser,
       displayName: buildDisplayName(user),
+      isAdmin: hasAdminAccess(user),
     }),
     [user],
   );

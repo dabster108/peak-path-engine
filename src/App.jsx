@@ -12,6 +12,7 @@ import Footer from "./components/Footer";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { UserProvider } from "./context/UserContext";
 import { CartProvider } from "./context/CartContext";
+import { useUser } from "./context/UserContext";
 
 const TOKEN_KEY = "shikhar_token";
 const USER_KEY = "shikhar_user";
@@ -33,6 +34,13 @@ export const setAuth = (token, user = undefined) => {
 };
 function ProtectedRoute({ children }) {
   if (!isAuthenticated()) return <Navigate to="/login" replace />;
+  return children;
+}
+
+function AdminRoute({ children }) {
+  const { isAdmin } = useUser();
+  if (!isAuthenticated()) return <Navigate to="/login" replace />;
+  if (!isAdmin) return <Navigate to="/" replace />;
   return children;
 }
 import Home from "./pages/Home";
@@ -142,9 +150,9 @@ function AppInner() {
         <Route
           path="/admin"
           element={
-            <ProtectedRoute>
+            <AdminRoute>
               <Admin />
-            </ProtectedRoute>
+            </AdminRoute>
           }
         />
         {/* Protected */}

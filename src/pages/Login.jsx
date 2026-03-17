@@ -15,6 +15,9 @@ const PARTICLES = Array.from({ length: 12 }, (_, i) => ({
   color: i % 3 === 0 ? "#f59e0b" : i % 3 === 1 ? "#3b82f6" : "#fff",
 }));
 
+const isAdminUser = (user) =>
+  Boolean(user?.is_superuser || user?.is_staff || user?.role === "admin");
+
 export default function Login() {
   // ✅ ALL hooks must come before any early returns
   const [mode, setMode] = useState("register");
@@ -137,7 +140,7 @@ export default function Login() {
 
       // ✅ Hard redirect so ProtectedRoute re-evaluates localStorage fresh
       setTimeout(() => {
-        window.location.href = user?.role === "admin" ? "/admin" : "/";
+        window.location.href = isAdminUser(user) ? "/admin" : "/";
       }, 900);
     } catch (err) {
       setError(getErrorMessage(err));
@@ -167,7 +170,7 @@ export default function Login() {
         });
 
         const { access, user } = res.data;
-        const isAdmin = user?.role === "admin";
+        const isAdmin = isAdminUser(user);
 
         setAuth(access, user);
         setSuccess(true);

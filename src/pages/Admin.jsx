@@ -65,7 +65,12 @@ export default function Admin() {
     api
       .get("profile/")
       .then((res) => {
-        if (res.data.role !== "admin") navigate("/");
+        const canAccess = Boolean(
+          res.data?.is_superuser ||
+            res.data?.is_staff ||
+            res.data?.role === "admin",
+        );
+        if (!canAccess) navigate("/");
       })
       .catch(() => navigate("/"));
   }, [navigate]);

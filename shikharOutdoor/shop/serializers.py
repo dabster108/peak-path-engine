@@ -1,6 +1,5 @@
 # shikharOutdoor\shop\serializers.py
 from rest_framework import serializers
-from django.contrib.auth import authenticate
 from .models import CustomUser, Product, Section, Badge, Category
 import re
 
@@ -9,7 +8,16 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CustomUser
-        fields = ("id", "username", "first_name", "last_name", "email", "role")
+        fields = (
+            "id",
+            "username",
+            "first_name",
+            "last_name",
+            "email",
+            "role",
+            "is_staff",
+            "is_superuser",
+        )
 
 
 class RegisterSerializer(serializers.ModelSerializer):
