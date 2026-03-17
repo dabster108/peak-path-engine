@@ -5,7 +5,7 @@ from urllib.error import HTTPError, URLError
 
 from rest_framework import generics
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.views import APIView
 
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -24,6 +24,8 @@ from .serializers import (
     LoginSerializer,
     SectionSerializer,
     UserSerializer,
+    ProfileSettingsSerializer,
+    ChangePasswordSerializer,
     GoogleAuthSerializer,
 )
 
@@ -103,13 +105,36 @@ class GoogleLoginView(APIView):
         })
 
 
-class ProfileView(generics.RetrieveAPIView):
-
-    serializer_class = UserSerializer
+class ProfileView(generics.RetrieveUpdateAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_object(self):
         return self.request.user
+
+    def get_serializer_class(self):
+        if self.request.method in ["PATCH", "PUT"]:
+            return ProfileSettingsSerializer
+        return UserSerializer
+
+
+class UserListView(generics.ListAPIView):
+    serializer_class = UserSerializer
+    permission_classes = [IsAdminUser]
+    queryset = CustomUser.objects.all().order_by("-date_joined")
+
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+
+        user = request.user
+        user.set_password(serializer.validated_data["new_password"])
+        user.save(update_fields=["password"])
+
+        return Response({"detail": "Password updated successfully."})
     
 class AddProductView(generics.CreateAPIView):
     serializer_class = ProductSerializer

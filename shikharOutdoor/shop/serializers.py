@@ -2,6 +2,7 @@
 from rest_framework import serializers
 from .models import CustomUser, Product, Section, Badge, Category
 import re
+from django.contrib.auth.password_validation import validate_password
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -18,6 +19,41 @@ class UserSerializer(serializers.ModelSerializer):
             "is_staff",
             "is_superuser",
         )
+
+
+class ProfileSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = ("username", "first_name", "last_name", "email")
+
+    def validate_email(self, value):
+        email = value.lower()
+        user = self.instance
+        if CustomUser.objects.exclude(pk=user.pk).filter(email__iexact=email).exists():
+            raise serializers.ValidationError("This email is already in use.")
+        return email
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True)
+    confirm_password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+
+        if not user or not user.is_authenticated:
+            raise serializers.ValidationError({"detail": "Authentication required."})
+
+        if not user.check_password(attrs["old_password"]):
+            raise serializers.ValidationError({"old_password": "Current password is incorrect."})
+
+        if attrs["new_password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError({"confirm_password": "New passwords do not match."})
+
+        validate_password(attrs["new_password"], user=user)
+        return attrs
 
 
 class RegisterSerializer(serializers.ModelSerializer):
