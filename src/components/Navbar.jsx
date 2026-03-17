@@ -3,7 +3,8 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { allSearchItems, trendingSearches } from "../data/searchData";
 import { isAuthenticated, setAuth } from "../App";
 import { formatNpr } from "../utils/currency";
-import api from "../utils/api";
+import { useUser } from "../context/UserContext";
+import { useCart } from "../context/CartContext";
 import "./Navbar.css";
 
 const navLinks = [
@@ -101,49 +102,38 @@ export default function Navbar() {
   const [mobileAccordion, setMobileAccordion] = useState(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [cartCount] = useState(0);
-  const [user, setUser] = useState(null);
+  const [cartOpen, setCartOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef(null);
+  const cartRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
   const searchInputRef = useRef(null);
   const isHome = location.pathname === "/";
+  const { user, displayName, clearUser } = useUser();
+  const { items, itemCount, subtotal, removeItem, updateQuantity } = useCart();
+  const avatarLetter = (displayName || "U").charAt(0).toUpperCase();
+  const userEmail = user?.email || "no-email@shikhar.local";
 
-  // Close profile dropdown on outside click
+  // Close profile dropdown and cart on outside click
   useEffect(() => {
     const handler = (e) => {
       if (profileRef.current && !profileRef.current.contains(e.target)) {
         setProfileOpen(false);
+      }
+      if (cartRef.current && !cartRef.current.contains(e.target)) {
+        setCartOpen(false);
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Close profile dropdown on route change
+  // Close profile dropdown and cart on route change
   useEffect(() => {
     setProfileOpen(false);
+    setCartOpen(false);
   }, [location]);
-
-  // Fetch user profile when authenticated
-  useEffect(() => {
-    const fetchProfile = () => {
-      if (!isAuthenticated()) {
-        setUser(null);
-        return;
-      }
-
-      api
-        .get("profile/")
-        .then((res) => setUser(res.data))
-        .catch(() => setUser(null));
-    };
-
-    fetchProfile();
-    window.addEventListener("auth-changed", fetchProfile);
-    return () => window.removeEventListener("auth-changed", fetchProfile);
-  }, []);
 
   // Derived search results
   const searchResults =
@@ -318,7 +308,7 @@ export default function Navbar() {
               >
                 {isAuthenticated() ? (
                   <span className="profile-avatar">
-                    S
+                    {avatarLetter}
                     <span className="profile-online-dot" />
                   </span>
                 ) : (
@@ -346,15 +336,13 @@ export default function Navbar() {
                   {/* Profile header */}
                   <div className="profile-dropdown__header">
                     <div className="profile-dropdown__avatar">
-                      {user?.username?.[0]?.toUpperCase() || "U"}
+                      {avatarLetter}
                     </div>
                     <div className="profile-dropdown__info">
                       <div className="profile-dropdown__name">
-                        {user?.username || "Adventurer"}
+                        {displayName || "Adventurer"}
                       </div>
-                      <div className="profile-dropdown__email">
-                        {user?.email || "shikhar@gmail.com"}
-                      </div>
+                      <div className="profile-dropdown__email">{userEmail}</div>
                     </div>
                   </div>
 
@@ -365,6 +353,7 @@ export default function Navbar() {
                     className="profile-dropdown__item"
                     onClick={() => {
                       setProfileOpen(false);
+                      navigate("/profile");
                     }}
                   >
                     <svg
@@ -412,6 +401,7 @@ export default function Navbar() {
                     className="profile-dropdown__item profile-dropdown__item--danger"
                     onClick={() => {
                       setAuth(false);
+                      clearUser();
                       setProfileOpen(false);
                       navigate("/login");
                     }}
@@ -435,7 +425,11 @@ export default function Navbar() {
                 </div>
               )}
             </div>
-            <button className="navbar__icon-btn cart-btn" aria-label="Cart">
+            <button
+              className={`navbar__icon-btn cart-btn${cartOpen ? " active" : ""}`}
+              aria-label="Cart"
+              onClick={() => setCartOpen((prev) => !prev)}
+            >
               <svg
                 width="20"
                 height="20"
@@ -448,7 +442,7 @@ export default function Navbar() {
                 <line x1="3" y1="6" x2="21" y2="6" />
                 <path d="M16 10a4 4 0 0 1-8 0" />
               </svg>
-              {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
+              {itemCount > 0 && <span className="cart-badge">{itemCount}</span>}
             </button>
             <button
               className={`hamburger ${mobileOpen ? "open" : ""}`}
@@ -733,6 +727,109 @@ export default function Navbar() {
             )}
           </div>
         </div>
+      )}
+
+      <aside className={`cart-panel${cartOpen ? " open" : ""}`} ref={cartRef}>
+        <div className="cart-panel__header">
+          <div>
+            <p className="cart-panel__eyebrow">Your Cart</p>
+            <h3>
+              {itemCount} item{itemCount === 1 ? "" : "s"}
+            </h3>
+          </div>
+          <button
+            type="button"
+            className="cart-panel__close"
+            onClick={() => setCartOpen(false)}
+            aria-label="Close cart"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="cart-panel__body">
+          {items.length === 0 ? (
+            <div className="cart-panel__empty">
+              <p>Your cart is empty.</p>
+              <span>Add products from any collection to see them here.</span>
+            </div>
+          ) : (
+            <ul className="cart-panel__list">
+              {items.map((item) => (
+                <li key={`${item.id}-${item.size}`} className="cart-item">
+                  <div className="cart-item__top">
+                    <div>
+                      <h4>{item.name}</h4>
+                      <p>
+                        {item.category} · Size {item.size}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="cart-item__remove"
+                      onClick={() => removeItem(item.id, item.size)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  <div className="cart-item__bottom">
+                    <div className="cart-item__qty">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateQuantity(item.id, item.size, item.quantity - 1)
+                        }
+                        aria-label="Decrease quantity"
+                      >
+                        -
+                      </button>
+                      <span>{item.quantity}</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateQuantity(item.id, item.size, item.quantity + 1)
+                        }
+                        aria-label="Increase quantity"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <strong>{formatNpr(item.price * item.quantity)}</strong>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="cart-panel__footer">
+          <div className="cart-panel__subtotal">
+            <span>Subtotal</span>
+            <strong>{formatNpr(subtotal)}</strong>
+          </div>
+          <button
+            type="button"
+            className="cart-panel__checkout"
+            disabled={items.length === 0}
+          >
+            Proceed to Checkout
+          </button>
+        </div>
+      </aside>
+      {cartOpen && (
+        <div
+          className="cart-panel__backdrop"
+          onClick={() => setCartOpen(false)}
+        />
       )}
     </>
   );

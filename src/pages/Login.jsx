@@ -132,7 +132,7 @@ export default function Login() {
       });
 
       const { access, user } = res.data;
-      setAuth(access);
+      setAuth(access, user);
       setSuccess(true);
 
       // ✅ Hard redirect so ProtectedRoute re-evaluates localStorage fresh
@@ -169,7 +169,7 @@ export default function Login() {
         const { access, user } = res.data;
         const isAdmin = user?.role === "admin";
 
-        setAuth(access);
+        setAuth(access, user);
         setSuccess(true);
 
         // ✅ Hard redirect so ProtectedRoute re-evaluates localStorage fresh

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { formatNpr } from "../utils/currency";
+import { useCart } from "../context/CartContext";
 import "./ProductCard.css";
 
 const SIZE_OPTIONS = ["Small", "Medium", "Large", "XL"];
@@ -8,6 +9,8 @@ export default function ProductCard({ product, index = 0 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedSize, setSelectedSize] = useState("Medium");
   const [quantity, setQuantity] = useState(1);
+  const [added, setAdded] = useState(false);
+  const { addItem } = useCart();
   const { name, category, price, originalPrice, badge, gradient } = product;
 
   useEffect(() => {
@@ -32,6 +35,22 @@ export default function ProductCard({ product, index = 0 }) {
 
   function decrementQty() {
     setQuantity((prev) => Math.max(1, prev - 1));
+  }
+
+  function handleAddToCart() {
+    addItem({
+      id: product.id,
+      name,
+      category,
+      price,
+      size: selectedSize,
+      quantity,
+    });
+    setAdded(true);
+    setTimeout(() => {
+      setAdded(false);
+      setIsOpen(false);
+    }, 700);
   }
 
   return (
@@ -196,9 +215,18 @@ export default function ProductCard({ product, index = 0 }) {
                 </div>
               </div>
 
-              <button type="button" className="product-quickview__add-btn">
+              <button
+                type="button"
+                className="product-quickview__add-btn"
+                onClick={handleAddToCart}
+              >
                 Add To Cart
               </button>
+              {added && (
+                <p className="product-quickview__added-message">
+                  Added to cart.
+                </p>
+              )}
             </div>
           </div>
         </div>

@@ -294,6 +294,13 @@
   cursor: pointer;
 }
 
+.product-quickview__added-message {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  color: #166534;
+  font-weight: 600;
+}
+
 @media (max-width: 760px) {
   .product-quickview__panel {
     grid-template-columns: 1fr;
