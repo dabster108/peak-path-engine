@@ -10,14 +10,23 @@ import {
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import { GoogleOAuthProvider } from "@react-oauth/google";
-
+import { UserProvider } from "./context/UserContext";
+import { CartProvider } from "./context/CartContext";
 
 const TOKEN_KEY = "shikhar_token";
+const USER_KEY = "shikhar_user";
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
 export const isAuthenticated = () => !!getToken();
-export const setAuth = (token) => {
+export const setAuth = (token, user = undefined) => {
   if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
+  else {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+  }
+
+  if (token && user) {
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  }
 
   // Notify other parts of the app that authentication state changed
   window.dispatchEvent(new Event("auth-changed"));
@@ -38,6 +47,7 @@ import Terms from "./pages/Terms";
 import Bottles from "./pages/Bottles";
 import Login from "./pages/Login";
 import Admin from "./pages/Admin";
+import Profile from "./pages/Profile";
 import "./App.css";
 
 function ScrollToTop() {
@@ -211,6 +221,14 @@ function AppInner() {
           }
         />
         <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/terms"
           element={
             <ProtectedRoute>
@@ -230,9 +248,13 @@ function AppInner() {
 export default function App() {
   return (
     <GoogleOAuthProvider clientId="387390235264-pgcq968tkl1snam558av935ksi932k1v.apps.googleusercontent.com">
-      <BrowserRouter>
-        <AppInner />
-      </BrowserRouter>
+      <UserProvider>
+        <CartProvider>
+          <BrowserRouter>
+            <AppInner />
+          </BrowserRouter>
+        </CartProvider>
+      </UserProvider>
     </GoogleOAuthProvider>
   );
 }
