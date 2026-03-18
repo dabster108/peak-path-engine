@@ -271,7 +271,7 @@ export default function Home() {
               <div className="promise-banner__map-wrap">
                 <iframe
                   title="Shikhar Store Location"
-                  src="https://www.google.com/maps?q=27.7153902,85.3123293&z=16&output=embed"
+                  src="https://www.google.com/maps?q=P886+J22+Shikhar+Outdoor,+Kathmandu,+44600&z=16&output=embed"
                   loading="lazy"
                   allowFullScreen
                   referrerPolicy="no-referrer-when-downgrade"
@@ -299,7 +299,7 @@ export default function Home() {
                   <button className="btn btn-outline-light">Trade In</button>
                   <a
                     className="btn btn-outline-light"
-                    href="https://www.google.com/maps/dir/?api=1&destination=27.7153902,85.3123293"
+                    href="https://www.google.com/maps/dir/?api=1&destination=P886+J22+Shikhar+Outdoor,+Kathmandu,+44600"
                     target="_blank"
                     rel="noreferrer"
                   >

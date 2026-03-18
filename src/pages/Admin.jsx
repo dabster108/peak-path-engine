@@ -15,6 +15,8 @@ const emptyForm = () => ({
   imagePreview: "",
 });
 
+const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
+
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const DEFAULT_CATEGORIES = ["Men's", "Women's", "Unisex"];
 const DEFAULT_SECTIONS = [
@@ -233,12 +235,44 @@ export default function Admin() {
   /* ── inline edit ── */
   const startEdit = (p) => {
     setEditingId(p.id);
-    setEditRow({ ...p });
+    setEditRow({
+      ...p,
+      imageFile: null,
+      imagePreview: getProductImage(p),
+    });
   };
   const cancelEdit = () => {
     setEditingId(null);
     setEditRow({});
   };
+
+  const handleEditImageSelect = (event) => {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+      showToast("Please select a JPG, PNG, or WebP image.", "warning");
+      event.target.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setEditRow((row) => ({
+        ...row,
+        imageFile: file,
+        imagePreview: typeof reader.result === "string" ? reader.result : "",
+      }));
+    };
+    reader.onerror = () => {
+      showToast(
+        "Could not read image file. Please try another image.",
+        "warning",
+      );
+    };
+    reader.readAsDataURL(file);
+  };
+
   const saveEdit = async () => {
     if (!editRow.name.trim()) return;
     try {
@@ -253,7 +287,14 @@ export default function Admin() {
       setProducts((prev) =>
         prev.map((p) => (p.id === editingId ? res.data : p)),
       );
+      if (hasOwn(editRow, "imagePreview")) {
+        setProductImageMap((prev) => ({
+          ...prev,
+          [editingId]: editRow.imagePreview || "",
+        }));
+      }
       setEditingId(null);
+      setEditRow({});
       showToast("Product updated.");
     } catch {
       showToast("Failed to update product.", "warning");
@@ -352,8 +393,9 @@ export default function Admin() {
   };
 
   const getProductImage = (product) => {
-    const mappedPreview = productImageMap[product.id];
-    if (mappedPreview) return mappedPreview;
+    if (hasOwn(productImageMap, product.id)) {
+      return productImageMap[product.id] || "";
+    }
     if (typeof product.imagePreview === "string") return product.imagePreview;
     if (typeof product.image === "string") return product.image;
     return "";
@@ -1106,16 +1148,61 @@ export default function Admin() {
                       editingId === p.id ? (
                         <tr key={p.id} className="admin-table__edit-row">
                           <td>
-                            <input
-                              className="admin-cell-input"
-                              value={editRow.name}
-                              onChange={(e) =>
-                                setEditRow((r) => ({
-                                  ...r,
-                                  name: e.target.value,
-                                }))
-                              }
-                            />
+                            <div className="admin-table__edit-product-cell">
+                              <div className="admin-table__edit-product-top">
+                                {editRow.imagePreview ? (
+                                  <img
+                                    src={editRow.imagePreview}
+                                    alt={`${editRow.name || "Product"} preview`}
+                                    className="admin-table__thumb"
+                                  />
+                                ) : (
+                                  <div className="admin-table__thumb admin-table__thumb--placeholder">
+                                    IMG
+                                  </div>
+                                )}
+                                <div className="admin-edit-image-upload">
+                                  <input
+                                    id={`admin-edit-image-${p.id}`}
+                                    className="admin-image-input"
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/webp"
+                                    onChange={handleEditImageSelect}
+                                  />
+                                  <label
+                                    className="admin-image-button"
+                                    htmlFor={`admin-edit-image-${p.id}`}
+                                  >
+                                    Change
+                                  </label>
+                                  {editRow.imagePreview && (
+                                    <button
+                                      type="button"
+                                      className="admin-edit-image-remove"
+                                      onClick={() =>
+                                        setEditRow((row) => ({
+                                          ...row,
+                                          imageFile: null,
+                                          imagePreview: "",
+                                        }))
+                                      }
+                                    >
+                                      Remove
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              <input
+                                className="admin-cell-input"
+                                value={editRow.name}
+                                onChange={(e) =>
+                                  setEditRow((r) => ({
+                                    ...r,
+                                    name: e.target.value,
+                                  }))
+                                }
+                              />
+                            </div>
                           </td>
                           <td>
                             <select
