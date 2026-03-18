@@ -484,14 +484,7 @@ export default function Admin() {
         <div className="admin-sidebar__brand">
           <Link to="/" className="admin-brand-link">
             <span className="admin-brand-icon">
-              <svg width="26" height="26" viewBox="0 0 28 28" fill="none">
-                <polygon
-                  points="14,2 26,24 2,24"
-                  fill="currentColor"
-                  opacity="0.9"
-                />
-                <polygon points="14,8 21,24 7,24" fill="white" opacity="0.3" />
-              </svg>
+              <img src="/image.png" alt="Shikhar Logo" className="logo-img" />
             </span>
             <span className="admin-brand-text">SHIKHAR</span>
           </Link>

@@ -219,14 +219,7 @@ export default function Navbar() {
           {/* Logo */}
           <Link to="/" className="navbar__logo">
             <span className="logo-mark">
-              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                <polygon
-                  points="14,2 26,24 2,24"
-                  fill="currentColor"
-                  opacity="0.9"
-                />
-                <polygon points="14,8 21,24 7,24" fill="white" opacity="0.3" />
-              </svg>
+              <img src="/image.png" alt="Shikhar Logo" className="logo-img" />
             </span>
             <span className="logo-text">SHIKHAR</span>
           </Link>
@@ -477,9 +470,7 @@ export default function Navbar() {
         <div className="mobile-drawer__header">
           <Link to="/" className="navbar__logo">
             <span className="logo-mark">
-              <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
-                <polygon points="14,2 26,24 2,24" fill="currentColor" />
-              </svg>
+              <img src="/image.png" alt="Shikhar Logo" className="logo-img" />
             </span>
             <span className="logo-text">SHIKHAR</span>
           </Link>
