@@ -11,8 +11,8 @@ const emptyForm = () => ({
   stock: "",
   badge: "",
   section: "",
-  imageFile: null,
-  imagePreview: "",
+  imageFiles: [],
+  imagePreviews: [],
 });
 
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -88,32 +88,35 @@ export default function Admin() {
   const toastTimer = useRef(null);
 
   const handleImageSelect = (event) => {
-    const file = event.target.files && event.target.files[0];
-    if (!file) {
-      setAddForm((f) => ({ ...f, imageFile: null, imagePreview: "" }));
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+
+    const invalid = files.find((f) => !ACCEPTED_IMAGE_TYPES.includes(f.type));
+    if (invalid) {
+      setAddError("Only JPG, PNG, or WebP images are allowed.");
       return;
     }
 
-    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-      setAddError("Please select a JPG, PNG, or WebP image.");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setAddForm((f) => ({
-        ...f,
-        imageFile: file,
-        imagePreview: typeof reader.result === "string" ? reader.result : "",
-      }));
-      setAddError("");
-    };
-    reader.onerror = () => {
-      setAddError("Could not read image file. Please try another image.");
-    };
-    reader.readAsDataURL(file);
+    // Generate previews for all selected files
+    const previews = [];
+    let loaded = 0;
+    files.forEach((file, i) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        previews[i] = reader.result;
+        loaded++;
+        if (loaded === files.length) {
+          setAddForm((f) => ({
+            ...f,
+            imageFiles: [...(f.imageFiles || []), ...files],
+            imagePreviews: [...(f.imagePreviews || []), ...previews],
+          }));
+          setAddError("");
+        }
+      };
+      reader.readAsDataURL(file);
+    });
   };
-
   /* ── toast helper (defined before useEffects that use it) ── */
   const showToast = (msg, type = "success") => {
     clearTimeout(toastTimer.current);
@@ -304,44 +307,40 @@ export default function Admin() {
     }
 
     try {
-      const selectedImagePreview = addForm.imagePreview;
-      const res = await api.post("add-product/", {
-        name: addForm.name.trim(),
-        category: addForm.category,
-        section: addForm.section,
-        badge: addForm.badge || null,
-        price: Number(addForm.price),
-        stock: Number(addForm.stock),
+      // Send product data + images together in one FormData request
+      const formData = new FormData();
+      formData.append("name", addForm.name.trim());
+      formData.append("category", addForm.category);
+      formData.append("section", addForm.section);
+      formData.append("price", Number(addForm.price));
+      formData.append("stock", Number(addForm.stock));
+      if (addForm.badge) formData.append("badge", addForm.badge);
+
+      // Append each image file
+      (addForm.imageFiles || []).forEach((file) => {
+        formData.append("images", file);
       });
 
-      if (selectedImagePreview && res.data?.id) {
-        setProductImageMap((prev) => ({
-          ...prev,
-          [res.data.id]: selectedImagePreview,
-        }));
-      }
+      const res = await api.post("add-product/", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
 
-      const newProduct = {
-        ...res.data,
-        imagePreview: selectedImagePreview,
-      };
-      try {
-        const productsRes = await api.get("products/");
-        setProducts(productsRes.data);
-      } catch {
-        setProducts((prev) => [newProduct, ...prev]);
-      }
-      setFilterCat("All");
-      setSearch("");
+      // Refresh product list
+      const productsRes = await api.get("products/");
+      setProducts(productsRes.data);
+
       setAddForm(emptyForm());
       setAddError("");
       setShowAdd(false);
       showToast(`"${res.data.name}" added to inventory.`);
-    } catch {
-      setAddError("Failed to add product. Please try again.");
+    } catch (err) {
+      setAddError(
+        err?.response?.data?.detail ||
+          Object.values(err?.response?.data || {})[0] ||
+          "Failed to add product. Please try again.",
+      );
     }
   };
-
   /* ── stock badge ── */
   const stockBadge = (stock) => {
     if (stock === 0)
@@ -352,10 +351,10 @@ export default function Admin() {
   };
 
   const getProductImage = (product) => {
-    const mappedPreview = productImageMap[product.id];
-    if (mappedPreview) return mappedPreview;
-    if (typeof product.imagePreview === "string") return product.imagePreview;
-    if (typeof product.image === "string") return product.image;
+    if (product.images && product.images.length > 0) {
+      const primary = product.images.find((img) => img.is_primary);
+      return (primary || product.images[0]).image;
+    }
     return "";
   };
 
@@ -364,14 +363,22 @@ export default function Admin() {
     try {
       const res = await api.patch("profile/", profileForm);
       setAdminProfile((prev) => ({ ...prev, ...res.data }));
-      showToast("Profile settings updated.");
-    } catch {
-      showToast("Failed to update profile.", "warning");
+      setProfileForm({
+        username: res.data.username || "",
+        first_name: res.data.first_name || "",
+        last_name: res.data.last_name || "",
+        email: res.data.email || "",
+      });
+      showToast("Profile updated successfully.");
+    } catch (error) {
+      showToast(
+        getApiErrorMessage(error, "Failed to update profile."),
+        "warning",
+      );
     } finally {
       setProfileSaving(false);
     }
   };
-
   const getApiErrorMessage = (error, fallback) => {
     const data = error?.response?.data;
     if (typeof data === "string") return data;
@@ -971,46 +978,54 @@ export default function Admin() {
                     </select>
                   </div>
                   <div className="admin-field admin-field--image">
-                    <label>Product Image</label>
+                    <label>Product Images</label>
                     <div className="admin-image-upload">
                       <input
                         id="admin-product-image"
                         className="admin-image-input"
                         type="file"
                         accept="image/jpeg,image/png,image/webp"
+                        multiple
                         onChange={handleImageSelect}
                       />
                       <label
                         className="admin-image-button"
                         htmlFor="admin-product-image"
                       >
-                        Choose Image
+                        Choose Images
                       </label>
                       <span className="admin-image-hint">
-                        JPG, PNG, or WebP
+                        JPG, PNG, or WebP — select multiple
                       </span>
                     </div>
-                    {addForm.imagePreview && (
-                      <div className="admin-image-preview">
-                        <img
-                          src={addForm.imagePreview}
-                          alt={`${addForm.name || "New product"} preview`}
-                        />
-                        <button
-                          type="button"
-                          className="admin-image-preview__remove"
-                          onClick={() =>
-                            setAddForm((f) => ({
-                              ...f,
-                              imageFile: null,
-                              imagePreview: "",
-                            }))
-                          }
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    )}
+
+                    {addForm.imagePreviews &&
+                      addForm.imagePreviews.length > 0 && (
+                        <div className="admin-image-previews">
+                          {addForm.imagePreviews.map((src, i) => (
+                            <div key={i} className="admin-image-preview">
+                              <img src={src} alt={`Preview ${i + 1}`} />
+                              <button
+                                type="button"
+                                className="admin-image-preview__remove"
+                                onClick={() =>
+                                  setAddForm((f) => ({
+                                    ...f,
+                                    imageFiles: f.imageFiles.filter(
+                                      (_, idx) => idx !== i,
+                                    ),
+                                    imagePreviews: f.imagePreviews.filter(
+                                      (_, idx) => idx !== i,
+                                    ),
+                                  }))
+                                }
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                   </div>
                 </div>
                 {addError && <div className="admin-form-error">{addError}</div>}

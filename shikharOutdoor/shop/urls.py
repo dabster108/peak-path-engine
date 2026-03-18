@@ -11,6 +11,7 @@ urlpatterns = [
     path("change-password/", views.ChangePasswordView.as_view()),
     path("users/", views.UserListView.as_view()),
     path("add-product/", views.AddProductView.as_view()),
+    path("products/<int:pk>/images/", views.ProductImageUploadView.as_view()),
     path("products/", views.ProductListView.as_view()),
     path("products/<int:pk>/", views.ProductDetailView.as_view()),
     path("categories/", views.CategoryListView.as_view()),

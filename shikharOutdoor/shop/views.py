@@ -7,7 +7,7 @@ from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.views import APIView
-
+from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from google.oauth2 import id_token
@@ -15,14 +15,17 @@ from google.auth.transport import requests
 
 from django.conf import settings
 
-from .models import CustomUser, Product, Section, Badge, Category
+from .models import CustomUser, Product, ProductImage, Section, Badge, Category
 from .serializers import (
     BadgeSerializer,
     CategorySerializer,
+    ProductImageSerializer,
     ProductSerializer,
+    ProfileUpdateSerializer,
     RegisterSerializer,
     LoginSerializer,
     SectionSerializer,
+    UserListSerializer,
     UserSerializer,
     ProfileSettingsSerializer,
     ChangePasswordSerializer,
@@ -105,40 +108,70 @@ class GoogleLoginView(APIView):
         })
 
 
-class ProfileView(generics.RetrieveUpdateAPIView):
+class ProfileView(generics.RetrieveUpdateAPIView):       
+    serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
 
     def get_object(self):
         return self.request.user
 
     def get_serializer_class(self):
-        if self.request.method in ["PATCH", "PUT"]:
-            return ProfileSettingsSerializer
+        if self.request.method in ("PUT", "PATCH"):
+            return ProfileUpdateSerializer
         return UserSerializer
-
-
-class UserListView(generics.ListAPIView):
-    serializer_class = UserSerializer
-    permission_classes = [IsAdminUser]
-    queryset = CustomUser.objects.all().order_by("-date_joined")
-
 
 class ChangePasswordView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        serializer = ChangePasswordSerializer(data=request.data, context={"request": request})
+        serializer = ChangePasswordSerializer(
+            data=request.data,
+            context={"request": request}
+        )
         serializer.is_valid(raise_exception=True)
-
-        user = request.user
-        user.set_password(serializer.validated_data["new_password"])
-        user.save(update_fields=["password"])
-
+        request.user.set_password(serializer.validated_data["new_password"])
+        request.user.save()
         return Response({"detail": "Password updated successfully."})
-    
-class AddProductView(generics.CreateAPIView):
-    serializer_class = ProductSerializer
+
+
+class UserListView(generics.ListAPIView):
+    serializer_class = UserListSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.role != "admin" and not self.request.user.is_staff:
+            return CustomUser.objects.none()
+        return CustomUser.objects.all().order_by("-date_joined")
+    
+    
+class AddProductView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def post(self, request):
+        data = {
+            "name":     request.data.get("name"),
+            "category": request.data.get("category"),
+            "section":  request.data.get("section"),
+            "badge":    request.data.get("badge") or None,
+            "price":    request.data.get("price"),
+            "stock":    request.data.get("stock"),
+        }
+
+        serializer = ProductSerializer(data=data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        product = serializer.save()
+
+        images = request.FILES.getlist("images")
+        for i, image_file in enumerate(images):
+            ProductImage.objects.create(
+                product=product,
+                image=image_file,
+                is_primary=(i == 0),
+                order=i,
+            )
+        result = ProductSerializer(product, context={"request": request})
+        return Response(result.data, status=201)
 
 
 class ProductListView(generics.ListAPIView):
@@ -166,3 +199,45 @@ class BadgeListView(generics.ListAPIView):
     serializer_class = BadgeSerializer
     permission_classes = [AllowAny]
     queryset = Badge.objects.all()
+
+
+class ProductImageUploadView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, pk):
+        try:
+            product = Product.objects.get(pk=pk)
+        except Product.DoesNotExist:
+            return Response({"error": "Product not found."}, status=404)
+
+        images = request.FILES.getlist("images")
+        if not images:
+            return Response({"error": "No images provided."}, status=400)
+
+        created = []
+        for i, image_file in enumerate(images):
+            # First uploaded image becomes primary if none exists
+            is_primary = (i == 0 and not product.images.exists())
+            img = ProductImage.objects.create(
+                product=product,
+                image=image_file,
+                is_primary=is_primary,
+                order=product.images.count(),
+            )
+            created.append(img)
+
+        serializer = ProductImageSerializer(
+            created, many=True, context={"request": request}
+        )
+        return Response(serializer.data, status=201)
+
+    def delete(self, request, pk):
+        image_id = request.data.get("image_id")
+        try:
+            image = ProductImage.objects.get(pk=image_id, product__pk=pk)
+            image.image.delete(save=False)  # delete file from disk
+            image.delete()
+            return Response({"detail": "Image deleted."})
+        except ProductImage.DoesNotExist:
+            return Response({"error": "Image not found."}, status=404)
