@@ -246,14 +246,7 @@ export default function Login() {
           {/* Logo */}
           <Link to="/" className="login-logo">
             <span className="login-logo-mark">
-              <svg width="32" height="32" viewBox="0 0 28 28" fill="none">
-                <polygon
-                  points="14,2 26,24 2,24"
-                  fill="currentColor"
-                  opacity="0.9"
-                />
-                <polygon points="14,8 21,24 7,24" fill="white" opacity="0.3" />
-              </svg>
+              <img src="/image.png" alt="Shikhar Logo" className="logo-img" />
             </span>
             <span className="login-logo-text">SHIKHAR</span>
           </Link>

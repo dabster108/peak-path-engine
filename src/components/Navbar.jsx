@@ -5,6 +5,7 @@ import { isAuthenticated, setAuth } from "../App";
 import { formatNpr } from "../utils/currency";
 import { useUser } from "../context/UserContext";
 import { useCart } from "../context/CartContext";
+import { useOrders } from "../context/OrderContext";
 import "./Navbar.css";
 
 const navLinks = [
@@ -111,9 +112,22 @@ export default function Navbar() {
   const searchInputRef = useRef(null);
   const isHome = location.pathname === "/";
   const { user, displayName, clearUser } = useUser();
-  const { items, itemCount, subtotal, removeItem, updateQuantity } = useCart();
+  const { items, itemCount, subtotal, removeItem, updateQuantity, clearCart } =
+    useCart();
+  const { placeOrder } = useOrders();
   const avatarLetter = (displayName || "U").charAt(0).toUpperCase();
   const userEmail = user?.email || "no-email@shikhar.local";
+
+  const handleCheckout = () => {
+    if (items.length === 0) return;
+
+    const createdOrder = placeOrder(items, subtotal);
+    if (!createdOrder) return;
+
+    clearCart();
+    setCartOpen(false);
+    navigate(`/orders?orderId=${createdOrder.id}`);
+  };
 
   // Close profile dropdown and cart on outside click
   useEffect(() => {
@@ -205,14 +219,7 @@ export default function Navbar() {
           {/* Logo */}
           <Link to="/" className="navbar__logo">
             <span className="logo-mark">
-              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                <polygon
-                  points="14,2 26,24 2,24"
-                  fill="currentColor"
-                  opacity="0.9"
-                />
-                <polygon points="14,8 21,24 7,24" fill="white" opacity="0.3" />
-              </svg>
+              <img src="/image.png" alt="Shikhar Logo" className="logo-img" />
             </span>
             <span className="logo-text">SHIKHAR</span>
           </Link>
@@ -376,6 +383,7 @@ export default function Navbar() {
                     className="profile-dropdown__item"
                     onClick={() => {
                       setProfileOpen(false);
+                      navigate("/orders");
                     }}
                   >
                     <svg
@@ -462,9 +470,7 @@ export default function Navbar() {
         <div className="mobile-drawer__header">
           <Link to="/" className="navbar__logo">
             <span className="logo-mark">
-              <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
-                <polygon points="14,2 26,24 2,24" fill="currentColor" />
-              </svg>
+              <img src="/image.png" alt="Shikhar Logo" className="logo-img" />
             </span>
             <span className="logo-text">SHIKHAR</span>
           </Link>
@@ -820,6 +826,7 @@ export default function Navbar() {
             type="button"
             className="cart-panel__checkout"
             disabled={items.length === 0}
+            onClick={handleCheckout}
           >
             Proceed to Checkout
           </button>

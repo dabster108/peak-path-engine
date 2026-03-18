@@ -48,7 +48,6 @@ export default function Admin() {
   const [tab, setTab] = useState("dashboard");
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(true);
-  const [productImageMap, setProductImageMap] = useState({});
 
   /* ── DB-driven dropdowns ── */
   const [categories, setCategories] = useState([]);
@@ -97,24 +96,25 @@ export default function Admin() {
       return;
     }
 
-    // Generate previews for all selected files
-    const previews = [];
-    let loaded = 0;
-    files.forEach((file, i) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        previews[i] = reader.result;
-        loaded++;
-        if (loaded === files.length) {
-          setAddForm((f) => ({
-            ...f,
-            imageFiles: [...(f.imageFiles || []), ...files],
-            imagePreviews: [...(f.imagePreviews || []), ...previews],
-          }));
-          setAddError("");
-        }
-      };
-      reader.readAsDataURL(file);
+    // Use Promise.all to wait for ALL readers before updating state
+    const readFile = (file) =>
+      new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = () => resolve("");
+        reader.readAsDataURL(file);
+      });
+
+    Promise.all(files.map(readFile)).then((previews) => {
+      setAddForm((f) => ({
+        ...f,
+        imageFiles: [...(f.imageFiles || []), ...files],
+        imagePreviews: [
+          ...(f.imagePreviews || []),
+          ...previews.filter(Boolean),
+        ],
+      }));
+      setAddError("");
     });
   };
   /* ── toast helper (defined before useEffects that use it) ── */
@@ -270,11 +270,7 @@ export default function Admin() {
     try {
       await api.delete(`products/${deleteConfirm}/`);
       setProducts((prev) => prev.filter((p) => p.id !== deleteConfirm));
-      setProductImageMap((prev) => {
-        const next = { ...prev };
-        delete next[deleteConfirm];
-        return next;
-      });
+      
       setDeleteConfirm(null);
       showToast("Product deleted.", "warning");
     } catch {
@@ -350,13 +346,17 @@ export default function Admin() {
     return <span className="stock-badge ok">{stock}</span>;
   };
 
-  const getProductImage = (product) => {
-    if (product.images && product.images.length > 0) {
-      const primary = product.images.find((img) => img.is_primary);
-      return (primary || product.images[0]).image;
-    }
-    return "";
-  };
+const getProductImage = (product) => {
+  if (!product) return "";
+  if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+    const primary = product.images.find((img) => img && img.is_primary);
+    const img = primary || product.images[0];
+    return (img && img.image) ? img.image : "";
+  }
+  // fallback for older products that may have a direct image field
+  if (typeof product.image === "string" && product.image) return product.image;
+  return "";
+};
 
   const handleProfileSave = async () => {
     setProfileSaving(true);

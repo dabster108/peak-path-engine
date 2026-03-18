@@ -12,6 +12,7 @@ import Footer from "./components/Footer";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { UserProvider } from "./context/UserContext";
 import { CartProvider } from "./context/CartContext";
+import { OrderProvider } from "./context/OrderContext";
 import { useUser } from "./context/UserContext";
 
 const TOKEN_KEY = "shikhar_token";
@@ -56,6 +57,7 @@ import Bottles from "./pages/Bottles";
 import Login from "./pages/Login";
 import Admin from "./pages/Admin";
 import Profile from "./pages/Profile";
+import MyOrders from "./pages/MyOrders";
 import "./App.css";
 
 function ScrollToTop() {
@@ -237,6 +239,14 @@ function AppInner() {
           }
         />
         <Route
+          path="/orders"
+          element={
+            <ProtectedRoute>
+              <MyOrders />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/terms"
           element={
             <ProtectedRoute>
@@ -258,9 +268,11 @@ export default function App() {
     <GoogleOAuthProvider clientId="387390235264-pgcq968tkl1snam558av935ksi932k1v.apps.googleusercontent.com">
       <UserProvider>
         <CartProvider>
-          <BrowserRouter>
-            <AppInner />
-          </BrowserRouter>
+          <OrderProvider>
+            <BrowserRouter>
+              <AppInner />
+            </BrowserRouter>
+          </OrderProvider>
         </CartProvider>
       </UserProvider>
     </GoogleOAuthProvider>
