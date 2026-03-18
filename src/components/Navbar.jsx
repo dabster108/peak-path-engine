@@ -5,6 +5,7 @@ import { isAuthenticated, setAuth } from "../App";
 import { formatNpr } from "../utils/currency";
 import { useUser } from "../context/UserContext";
 import { useCart } from "../context/CartContext";
+import { useOrders } from "../context/OrderContext";
 import "./Navbar.css";
 
 const navLinks = [
@@ -111,9 +112,22 @@ export default function Navbar() {
   const searchInputRef = useRef(null);
   const isHome = location.pathname === "/";
   const { user, displayName, clearUser } = useUser();
-  const { items, itemCount, subtotal, removeItem, updateQuantity } = useCart();
+  const { items, itemCount, subtotal, removeItem, updateQuantity, clearCart } =
+    useCart();
+  const { placeOrder } = useOrders();
   const avatarLetter = (displayName || "U").charAt(0).toUpperCase();
   const userEmail = user?.email || "no-email@shikhar.local";
+
+  const handleCheckout = () => {
+    if (items.length === 0) return;
+
+    const createdOrder = placeOrder(items, subtotal);
+    if (!createdOrder) return;
+
+    clearCart();
+    setCartOpen(false);
+    navigate(`/orders?orderId=${createdOrder.id}`);
+  };
 
   // Close profile dropdown and cart on outside click
   useEffect(() => {
@@ -376,6 +390,7 @@ export default function Navbar() {
                     className="profile-dropdown__item"
                     onClick={() => {
                       setProfileOpen(false);
+                      navigate("/orders");
                     }}
                   >
                     <svg
@@ -820,6 +835,7 @@ export default function Navbar() {
             type="button"
             className="cart-panel__checkout"
             disabled={items.length === 0}
+            onClick={handleCheckout}
           >
             Proceed to Checkout
           </button>
