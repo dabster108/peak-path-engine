@@ -932,6 +932,26 @@
   margin-bottom: 16px;
 }
 
+.admin-orders__filters {
+  margin-bottom: 16px;
+}
+
+.admin-order-id {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.admin-order-subid {
+  margin-top: 2px;
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.admin-order-status-select {
+  min-width: 170px;
+}
+
 .admin-profile-card {
   display: flex;
   align-items: center;

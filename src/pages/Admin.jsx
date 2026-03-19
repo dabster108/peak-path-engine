@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { formatNpr } from "../utils/currency";
 import api from "../utils/api";
+import { useOrders } from "../context/OrderContext";
 import "./Admin.css";
 
 const emptyForm = () => ({
@@ -27,6 +28,23 @@ const DEFAULT_SECTIONS = [
   "Goretex",
 ];
 const DEFAULT_BADGES = ["", "New", "Sale", "Limited"];
+const ORDER_STATUSES = [
+  "Order Placed",
+  "Confirmed",
+  "Packed",
+  "Out for Delivery",
+  "Delivered",
+];
+
+function formatAdminDate(dateString) {
+  return new Date(dateString).toLocaleString("en-NP", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 const uniqueNonEmpty = (items) => [...new Set(items.filter(Boolean))];
 
@@ -83,9 +101,12 @@ export default function Admin() {
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersSearch, setUsersSearch] = useState("");
+  const [orderSearch, setOrderSearch] = useState("");
+  const [orderStatusFilter, setOrderStatusFilter] = useState("All");
   const [toast, setToast] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const { orders, updateOrderStatus } = useOrders();
   const navigate = useNavigate();
   const toastTimer = useRef(null);
 
@@ -469,10 +490,48 @@ export default function Admin() {
     );
   });
 
+  const adminOrders = [...orders].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+
+  const filteredOrders = adminOrders.filter((order) => {
+    const query = orderSearch.toLowerCase().trim();
+    const status = order.statusLabel || "Processing";
+
+    const matchesSearch =
+      !query ||
+      (order.orderNumber || "").toLowerCase().includes(query) ||
+      String(order.id).toLowerCase().includes(query) ||
+      order.items?.some((item) =>
+        (item.name || "").toLowerCase().includes(query),
+      );
+
+    const matchesStatus =
+      orderStatusFilter === "All" || status === orderStatusFilter;
+
+    return matchesSearch && matchesStatus;
+  });
+
+  const handleAdminOrderStatusChange = (order, event) => {
+    const nextStatus = event.target.value;
+    if (!nextStatus) return;
+
+    const nextIndex = ORDER_STATUSES.indexOf(nextStatus);
+    if (nextIndex < 0) return;
+
+    const updated = updateOrderStatus(order.id, nextIndex, nextStatus);
+    if (updated) {
+      showToast(`Order ${order.orderNumber} updated to ${nextStatus}.`);
+    } else {
+      showToast("Failed to update order status.", "warning");
+    }
+  };
+
   const topbarTitle =
     {
       dashboard: "Dashboard",
       products: "Products & Stock",
+      orders: "Orders",
       users: "Users",
       profile: "Admin Profile Settings",
     }[tab] || "Admin";
@@ -540,6 +599,30 @@ export default function Admin() {
             Products & Stock
           </button>
           <button
+            className={`admin-nav-item${tab === "orders" ? " active" : ""}`}
+            onClick={() => {
+              setTab("orders");
+              setSidebarOpen(false);
+            }}
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <path d="M9 14h6" />
+              <path d="M9 10h6" />
+            </svg>
+            Orders
+          </button>
+          <button
             className={`admin-nav-item${tab === "users" ? " active" : ""}`}
             onClick={() => {
               setTab("users");
@@ -584,22 +667,6 @@ export default function Admin() {
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.08a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.08a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.08a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
             Profile Settings
-          </button>
-          <button className="admin-nav-item admin-nav-item--disabled">
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-            </svg>
-            Orders
-            <span className="admin-nav-soon">Soon</span>
           </button>
           <button className="admin-nav-item admin-nav-item--disabled">
             <svg
@@ -1384,6 +1451,130 @@ export default function Admin() {
                   </tbody>
                 </table>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ─── Orders Tab ─── */}
+        {tab === "orders" && (
+          <div className="admin-content admin-orders">
+            <div className="admin-section-header">
+              <div>
+                <h2 className="admin-section-title">Orders</h2>
+                <p className="admin-section-sub">
+                  Track customer orders and update delivery progress
+                </p>
+              </div>
+            </div>
+
+            <div className="admin-filters admin-orders__filters">
+              <div className="admin-search-wrap">
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.35-4.35" />
+                </svg>
+                <input
+                  className="admin-search"
+                  placeholder="Search by order id or product"
+                  value={orderSearch}
+                  onChange={(e) => setOrderSearch(e.target.value)}
+                />
+              </div>
+
+              <div className="admin-filter-chips">
+                {["All", ...ORDER_STATUSES].map((status) => (
+                  <button
+                    key={status}
+                    className={`admin-chip${orderStatusFilter === status ? " active" : ""}`}
+                    onClick={() => setOrderStatusFilter(status)}
+                  >
+                    {status}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Order</th>
+                    <th>Placed</th>
+                    <th>Items</th>
+                    <th>Total</th>
+                    <th>Current Status</th>
+                    <th>Update Tracking</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredOrders.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="admin-table__empty">
+                        No orders found yet.
+                      </td>
+                    </tr>
+                  )}
+
+                  {filteredOrders.map((order) => {
+                    const rawStatus = order.statusLabel || "Confirmed";
+                    const currentStatus = ORDER_STATUSES.includes(rawStatus)
+                      ? rawStatus
+                      : "Confirmed";
+                    const itemCount = Array.isArray(order.items)
+                      ? order.items.length
+                      : 0;
+
+                    return (
+                      <tr key={order.id} className="admin-table__row">
+                        <td>
+                          <div className="admin-order-id">
+                            {order.orderNumber}
+                          </div>
+                          <div className="admin-order-subid">
+                            Ref: {order.id}
+                          </div>
+                        </td>
+                        <td className="admin-table__section">
+                          {formatAdminDate(order.createdAt)}
+                        </td>
+                        <td className="admin-table__section">
+                          {itemCount} item{itemCount === 1 ? "" : "s"}
+                        </td>
+                        <td className="admin-table__price">
+                          {formatNpr(order.subtotal || 0)}
+                        </td>
+                        <td>
+                          <span className="admin-badge-tag badge-new">
+                            {currentStatus}
+                          </span>
+                        </td>
+                        <td>
+                          <select
+                            className="admin-cell-select admin-order-status-select"
+                            value={currentStatus}
+                            onChange={(event) =>
+                              handleAdminOrderStatusChange(order, event)
+                            }
+                          >
+                            {ORDER_STATUSES.map((status) => (
+                              <option key={status} value={status}>
+                                {status}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
