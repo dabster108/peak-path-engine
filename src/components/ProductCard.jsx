@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { formatNpr } from "../utils/currency";
 import { useCart } from "../context/CartContext";
+import { cacheProductForDetails, getProductRoute } from "../utils/productRoute";
 import "./ProductCard.css";
 
 const SIZE_OPTIONS = ["Small", "Medium", "Large", "XL"];
@@ -11,7 +13,12 @@ export default function ProductCard({ product, index = 0 }) {
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
   const { addItem } = useCart();
+  const navigate = useNavigate();
   const { name, category, price, originalPrice, badge, gradient } = product;
+
+  useEffect(() => {
+    cacheProductForDetails(product);
+  }, [product]);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -53,12 +60,15 @@ export default function ProductCard({ product, index = 0 }) {
     }, 700);
   }
 
+  function openDetails() {
+    navigate(getProductRoute(product), { state: { product } });
+  }
+
   return (
     <>
       <div
         className="product-card reveal"
         style={{ transitionDelay: `${index * 80}ms` }}
-        onClick={() => setIsOpen(true)}
       >
         <div className="product-card__image-wrap">
           {/* Gradient placeholder with mountain SVG */}
@@ -116,6 +126,13 @@ export default function ProductCard({ product, index = 0 }) {
             )}
             <span className="product-card__price">{formatNpr(price)}</span>
           </div>
+          <button
+            type="button"
+            className="product-card__details-link"
+            onClick={openDetails}
+          >
+            View full details
+          </button>
         </div>
       </div>
 
@@ -221,6 +238,16 @@ export default function ProductCard({ product, index = 0 }) {
                 onClick={handleAddToCart}
               >
                 Add To Cart
+              </button>
+              <button
+                type="button"
+                className="product-quickview__details-btn"
+                onClick={() => {
+                  setIsOpen(false);
+                  openDetails();
+                }}
+              >
+                Open Product Details
               </button>
               {added && (
                 <p className="product-quickview__added-message">

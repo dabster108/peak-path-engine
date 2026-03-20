@@ -58,6 +58,7 @@ import Login from "./pages/Login";
 import Admin from "./pages/Admin";
 import Profile from "./pages/Profile";
 import MyOrders from "./pages/MyOrders";
+import ProductDetails from "./pages/ProductDetails";
 import "./App.css";
 
 function ScrollToTop() {
@@ -251,6 +252,14 @@ function AppInner() {
           element={
             <ProtectedRoute>
               <Terms />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/product/:handle"
+          element={
+            <ProtectedRoute>
+              <ProductDetails />
             </ProtectedRoute>
           }
         />

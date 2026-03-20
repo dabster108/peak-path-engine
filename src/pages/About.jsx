@@ -296,7 +296,7 @@ function WriteReview({ onSubmit }) {
         </label>
         <textarea
           rows="4"
-          placeholder="Tell us about your experience on the trail with this product…"
+          placeholder="Tell us about your experience on the trail with this product..."
           maxLength={500}
           value={form.text}
           onChange={(e) => setForm({ ...form, text: e.target.value })}
@@ -324,6 +324,7 @@ const milestones = [
 export default function About() {
   useScrollAnimations();
   const [userReviews, setUserReviews] = useState([]);
+  const [activeReviewPanel, setActiveReviewPanel] = useState("share");
 
   return (
     <main className="about-page">
@@ -626,42 +627,94 @@ export default function About() {
             <h2>What Our Explorers Say</h2>
             <p>Real experiences from the trails, passes, and summits.</p>
           </div>
-          <div className="reviews-grid">
-            {[...reviews, ...userReviews].map((r, i) => (
-              <div
-                key={i}
-                className="review-card reveal"
-                style={{
-                  "--card-gradient": r.gradient,
-                  animationDelay: `${i * 0.08}s`,
-                }}
+          <div className="reviews-switch-card reveal">
+            <div
+              className="reviews-switch-tabs"
+              role="tablist"
+              aria-label="Review panel switch"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeReviewPanel === "share"}
+                className={`reviews-switch-tab${activeReviewPanel === "share" ? " active" : ""}`}
+                onClick={() => setActiveReviewPanel("share")}
               >
-                <div className="review-card__top">
-                  <div
-                    className="review-avatar"
-                    style={{ background: r.gradient }}
-                  >
-                    {r.name.charAt(0)}
+                Share Your Experience
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeReviewPanel === "reviews"}
+                className={`reviews-switch-tab${activeReviewPanel === "reviews" ? " active" : ""}`}
+                onClick={() => setActiveReviewPanel("reviews")}
+              >
+                Product Reviews
+              </button>
+            </div>
+
+            <div className="reviews-switch-content">
+              {activeReviewPanel === "share" ? (
+                <WriteReview
+                  onSubmit={(r) => setUserReviews((prev) => [r, ...prev])}
+                />
+              ) : (
+                <div>
+                  <div className="reviews-upload-cta">
+                    <div>
+                      <p className="reviews-upload-cta__title">
+                        Have a product experience to share?
+                      </p>
+                      <p className="reviews-upload-cta__copy">
+                        Upload your product review so other trekkers can choose
+                        better gear.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-amber reviews-upload-cta__button"
+                      onClick={() => setActiveReviewPanel("share")}
+                    >
+                      Upload Product Review
+                    </button>
                   </div>
-                  <div>
-                    <p className="review-name">{r.name}</p>
-                    <p className="review-meta">
-                      {r.location} &middot; {r.date}
-                    </p>
+
+                  <div className="reviews-grid reviews-grid--switch">
+                    {[...reviews, ...userReviews].map((r, i) => (
+                      <div
+                        key={i}
+                        className="review-card reveal"
+                        style={{
+                          "--card-gradient": r.gradient,
+                          animationDelay: `${i * 0.08}s`,
+                        }}
+                      >
+                        <div className="review-card__top">
+                          <div
+                            className="review-avatar"
+                            style={{ background: r.gradient }}
+                          >
+                            {r.name.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="review-name">{r.name}</p>
+                            <p className="review-meta">
+                              {r.location} &middot; {r.date}
+                            </p>
+                          </div>
+                        </div>
+                        <StarRating count={r.rating} />
+                        <p className="review-product">
+                          Purchased: <strong>{r.product}</strong>
+                        </p>
+                        <p className="review-text">&ldquo;{r.text}&rdquo;</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <StarRating count={r.rating} />
-                <p className="review-product">
-                  Purchased: <strong>{r.product}</strong>
-                </p>
-                <p className="review-text">&ldquo;{r.text}&rdquo;</p>
-              </div>
-            ))}
+              )}
+            </div>
           </div>
-
-          <WriteReview
-            onSubmit={(r) => setUserReviews((prev) => [r, ...prev])}
-          />
         </div>
       </section>
 
