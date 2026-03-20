@@ -3,6 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { formatNpr } from "../utils/currency";
 import api from "../utils/api";
 import { useOrders } from "../context/OrderContext";
+import { useUser } from "../context/UserContext";
+import { setAuth } from "../App";
 import "./Admin.css";
 
 const emptyForm = () => ({
@@ -108,8 +110,15 @@ export default function Admin() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const { orders, updateOrderStatus } = useOrders();
+  const { clearUser } = useUser();
   const navigate = useNavigate();
   const toastTimer = useRef(null);
+
+  const handleAdminLogout = () => {
+    setAuth(false);
+    clearUser();
+    navigate("/login", { replace: true });
+  };
 
   const handleImageSelect = (event) => {
     const file = event.target.files && event.target.files[0];
@@ -788,6 +797,27 @@ export default function Admin() {
             </svg>
             Back to Store
           </Link>
+          <button
+            type="button"
+            className="admin-sidebar-logout"
+            onClick={handleAdminLogout}
+          >
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            Logout Admin
+          </button>
         </div>
       </aside>
 
@@ -814,6 +844,27 @@ export default function Admin() {
           </button>
           <div className="admin-topbar__title">{topbarTitle}</div>
           <div className="admin-topbar__right">
+            <button
+              type="button"
+              className="admin-topbar__logout"
+              onClick={handleAdminLogout}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              Logout
+            </button>
             <button
               className="admin-topbar__avatar admin-topbar__avatar-btn"
               onClick={() => setTab("profile")}

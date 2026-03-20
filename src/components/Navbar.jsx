@@ -93,6 +93,7 @@ const navLinks = [
       { label: "Tents", sub: "Lightweight shelters" },
     ],
   },
+  { label: "Blog", to: "/blog" },
   { label: "About", to: "/about" },
 ];
 
