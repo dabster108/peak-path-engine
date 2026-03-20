@@ -126,6 +126,19 @@
   color: var(--color-amber);
 }
 
+.product-card__details-link {
+  margin-top: 0.75rem;
+  border: none;
+  background: none;
+  padding: 0;
+  color: #1b4332;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
 .product-quickview {
   position: fixed;
   inset: 0;
@@ -291,6 +304,18 @@
   font-weight: 700;
   color: #111827;
   background: linear-gradient(135deg, #facc15, #f59e0b);
+  cursor: pointer;
+}
+
+.product-quickview__details-btn {
+  margin-top: 0.35rem;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  height: 40px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #111827;
+  background: #fff;
   cursor: pointer;
 }
 

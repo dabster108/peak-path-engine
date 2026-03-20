@@ -384,11 +384,80 @@
 .about-reviews .section-header p {
   color: #6b7280;
 }
+.reviews-switch-card {
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 20px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  margin-top: 2.5rem;
+}
+.reviews-switch-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  padding: 0.35rem;
+  background: #f3f4f6;
+  border-radius: 14px;
+}
+.reviews-switch-tab {
+  border: none;
+  border-radius: 10px;
+  padding: 0.75rem 0.9rem;
+  background: transparent;
+  color: #4b5563;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.reviews-switch-tab.active {
+  background: #ffffff;
+  color: var(--color-charcoal);
+  box-shadow: 0 1px 10px rgba(0, 0, 0, 0.08);
+}
+.reviews-switch-content {
+  margin-top: 1rem;
+}
+.reviews-upload-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f9fafb, #ffffff);
+  padding: 1rem 1.1rem;
+  margin-bottom: 1rem;
+}
+.reviews-upload-cta__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-charcoal);
+}
+.reviews-upload-cta__copy {
+  margin: 0.25rem 0 0;
+  font-size: 0.82rem;
+  color: #6b7280;
+}
+.reviews-upload-cta__button {
+  white-space: nowrap;
+  padding: 0.6rem 1rem;
+  font-size: 0.84rem;
+}
 .reviews-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 1.5rem;
-  margin-top: 3rem;
+  margin-top: 1.5rem;
+}
+.reviews-grid--switch {
+  grid-template-columns: repeat(2, 1fr);
+  margin-top: 0;
 }
 .review-card {
   background: #fff;
@@ -522,6 +591,9 @@
 }
 
 @media (max-width: 900px) {
+  .reviews-grid--switch {
+    grid-template-columns: repeat(2, 1fr);
+  }
   .reviews-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -530,7 +602,15 @@
   }
 }
 @media (max-width: 560px) {
+  .reviews-switch-tabs {
+    grid-template-columns: 1fr;
+  }
+  .reviews-upload-cta {
+    flex-direction: column;
+    align-items: flex-start;
+  }
   .reviews-grid,
+  .reviews-grid--switch,
   .warranty-grid {
     grid-template-columns: 1fr;
   }
@@ -538,12 +618,12 @@
 
 /* ====== WRITE A REVIEW FORM ====== */
 .write-review-form {
-  margin-top: 3rem;
+  margin-top: 0;
   background: #fff;
-  border: 1.5px solid #e5e7eb;
-  border-radius: 20px;
-  padding: 2.5rem;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  border: 1.5px solid #eef0f2;
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: none;
 }
 .write-review-title {
   display: flex;
