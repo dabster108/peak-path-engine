@@ -65,13 +65,11 @@ export default function Footer() {
           <div className="footer__brand">
             <Link to="/" className="footer__logo">
               <span className="footer-logo-mark">
-                <svg width="32" height="32" viewBox="0 0 28 28" fill="none">
-                  <polygon points="14,2 26,24 2,24" fill="#D97706" />
-                  <polygon
-                    points="14,8 21,24 7,24"
-                    fill="rgba(255,255,255,0.2)"
-                  />
-                </svg>
+                <img
+                  src="/image.png"
+                  alt="Shikhar Outdoor logo"
+                  className="footer-logo-img"
+                />
               </span>
               <span>SHIKHAR OUTDOOR</span>
             </Link>

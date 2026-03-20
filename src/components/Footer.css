@@ -26,8 +26,6 @@
 }
 
 /* Brand */
-.footer__brand {
-}
 .footer__logo {
   display: flex;
   align-items: center;
@@ -47,6 +45,31 @@
 }
 .footer-logo-mark {
   flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(217, 119, 6, 0.08);
+  box-shadow:
+    0 0 0 1px rgba(217, 119, 6, 0.25),
+    0 0 16px rgba(217, 119, 6, 0.35);
+  transition:
+    box-shadow 0.25s ease,
+    transform 0.25s ease;
+}
+.footer-logo-img {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 6px rgba(217, 119, 6, 0.55));
+}
+.footer__logo:hover .footer-logo-mark {
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 0 1px rgba(217, 119, 6, 0.4),
+    0 0 22px rgba(217, 119, 6, 0.5);
 }
 
 .footer__tagline {

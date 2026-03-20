@@ -155,6 +155,32 @@
   background: rgba(255, 255, 255, 0.05);
 }
 
+.admin-sidebar-logout {
+  margin-top: 8px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #fecaca;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  padding: 9px 10px;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.admin-sidebar-logout:hover {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.48);
+}
+
 /* sidebar overlay for mobile */
 .admin-sidebar-overlay {
   display: none;
@@ -216,6 +242,35 @@
 
 .admin-topbar__right {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-topbar__logout {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 9px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.1);
+  color: #fecaca;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.admin-topbar__logout:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.55);
+  transform: translateY(-1px);
 }
 
 .admin-topbar__avatar {
@@ -1397,6 +1452,10 @@
 }
 
 @media (max-width: 600px) {
+  .admin-topbar__logout {
+    padding: 0 9px;
+    font-size: 0.7rem;
+  }
   .admin-content {
     padding: 18px 14px 48px;
   }

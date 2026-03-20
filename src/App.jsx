@@ -59,6 +59,7 @@ import Admin from "./pages/Admin";
 import Profile from "./pages/Profile";
 import MyOrders from "./pages/MyOrders";
 import ProductDetails from "./pages/ProductDetails";
+import Blog from "./pages/Blog";
 import "./App.css";
 
 function ScrollToTop() {
@@ -228,6 +229,14 @@ function AppInner() {
           element={
             <ProtectedRoute>
               <About />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/blog"
+          element={
+            <ProtectedRoute>
+              <Blog />
             </ProtectedRoute>
           }
         />
