@@ -34,6 +34,51 @@ const featuredPosts = [
     createdAt: "2025-12-14T07:15:00.000Z",
     source: "featured",
   },
+  {
+    id: "f-4",
+    title: "Weekend Route Check: How We Read Wind Windows Before Alpine Starts",
+    excerpt:
+      "A quick framework for choosing safer departure windows with ridge-level wind, cloud floor, and bailout points in mind.",
+    author: "Weather Desk",
+    category: "How-To",
+    createdAt: "2026-03-10T06:45:00.000Z",
+    source: "featured",
+  },
+  {
+    id: "f-5",
+    title: "Camp Kitchen Systems for Sub-5 Degree Nights",
+    excerpt:
+      "From stove shielding to fuel planning, we tested compact cooking setups that stay reliable when temperatures drop after sunset.",
+    author: "Basecamp Crew",
+    category: "Gear Guide",
+    createdAt: "2026-03-05T14:20:00.000Z",
+    source: "featured",
+  },
+  {
+    id: "f-6",
+    title: "Blister-Free Boot Break-In: 14-Day Ladder Plan",
+    excerpt:
+      "Use this structured routine to soften new boots, strengthen ankles, and avoid painful hotspots before your first long climb.",
+    author: "Field Lab",
+    category: "Trail Notes",
+    createdAt: "2026-02-28T10:05:00.000Z",
+    source: "featured",
+  },
+];
+
+const publishingPrompts = [
+  {
+    day: "Monday",
+    idea: "2-minute gear checklist for this week's weather",
+  },
+  {
+    day: "Wednesday",
+    idea: "one trail lesson from a recent customer story",
+  },
+  {
+    day: "Friday",
+    idea: "quick how-to with one practical photo or diagram",
+  },
 ];
 
 const defaultForm = {
@@ -63,11 +108,20 @@ function formatBlogDate(value) {
   });
 }
 
+function countPostsInLastDays(posts, days) {
+  const now = Date.now();
+  const threshold = now - days * 24 * 60 * 60 * 1000;
+  return posts.filter((post) => new Date(post.createdAt).getTime() >= threshold)
+    .length;
+}
+
 export default function Blog() {
   const [form, setForm] = useState(defaultForm);
   const [formError, setFormError] = useState("");
   const [publishSuccess, setPublishSuccess] = useState("");
   const [userPosts, setUserPosts] = useState(() => readStoredPosts());
+  const [selectedCategory, setSelectedCategory] = useState("All Categories");
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     localStorage.setItem(BLOG_STORAGE_KEY, JSON.stringify(userPosts));
@@ -80,6 +134,34 @@ export default function Blog() {
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       ),
     [userPosts],
+  );
+
+  const categories = useMemo(() => {
+    const values = [...new Set(allPosts.map((post) => post.category))];
+    return ["All Categories", ...values];
+  }, [allPosts]);
+
+  const filteredPosts = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
+    return allPosts.filter((post) => {
+      const categoryMatch =
+        selectedCategory === "All Categories" ||
+        post.category === selectedCategory;
+
+      if (!categoryMatch) return false;
+      if (!normalizedSearch) return true;
+
+      return [post.title, post.excerpt, post.author]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedSearch);
+    });
+  }, [allPosts, searchTerm, selectedCategory]);
+
+  const postsThisMonth = useMemo(
+    () => countPostsInLastDays(allPosts, 30),
+    [allPosts],
   );
 
   const handleChange = (key, value) => {
@@ -136,6 +218,35 @@ export default function Blog() {
             earn trust, and grow long-term traffic from practical outdoor
             content.
           </p>
+        </div>
+      </section>
+
+      <section className="blog-pulse">
+        <div className="container blog-pulse__grid">
+          <article className="blog-pulse__card">
+            <p className="blog-pulse__label">Publishing Pulse</p>
+            <h3>{postsThisMonth} posts in the last 30 days</h3>
+            <p>
+              Keep momentum by publishing practical stories at least 2 times per
+              week.
+            </p>
+          </article>
+          <article className="blog-pulse__card">
+            <p className="blog-pulse__label">Community Signals</p>
+            <h3>{userPosts.length} community contributions</h3>
+            <p>
+              New local stories improve trust and help your audience discover
+              fresh routes and gear decisions.
+            </p>
+          </article>
+          <article className="blog-pulse__card">
+            <p className="blog-pulse__label">Cadence Target</p>
+            <h3>8 posts per month</h3>
+            <p>
+              Use short checklists and trail updates to stay consistent even
+              during busy expedition weeks.
+            </p>
+          </article>
         </div>
       </section>
 
@@ -236,6 +347,17 @@ export default function Blog() {
               Pro tip: publishing one strong guide weekly can compound organic
               traffic over time.
             </div>
+
+            <div className="blog-guidelines__plan">
+              <h4>Weekly Posting Rhythm</h4>
+              <ul>
+                {publishingPrompts.map((prompt) => (
+                  <li key={prompt.day}>
+                    <strong>{prompt.day}:</strong> {prompt.idea}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </aside>
         </div>
       </section>
@@ -247,8 +369,34 @@ export default function Blog() {
             <p>{allPosts.length} stories in the journal</p>
           </div>
 
+          <div className="blog-feed__controls">
+            <label>
+              Search
+              <input
+                type="search"
+                placeholder="Search title, author, or summary"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </label>
+            <label>
+              Category
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+              >
+                {categories.map((category) => (
+                  <option key={category}>{category}</option>
+                ))}
+              </select>
+            </label>
+            <p className="blog-feed__results">
+              Showing {filteredPosts.length} of {allPosts.length}
+            </p>
+          </div>
+
           <div className="blog-feed__grid">
-            {allPosts.map((post) => (
+            {filteredPosts.map((post) => (
               <article key={post.id} className="blog-card">
                 <div className="blog-card__meta">
                   <span className="blog-card__tag">{post.category}</span>
@@ -264,6 +412,16 @@ export default function Blog() {
                 </div>
               </article>
             ))}
+
+            {!filteredPosts.length && (
+              <article className="blog-feed__empty">
+                <h3>No posts found</h3>
+                <p>
+                  Try a different category or clear search to explore more
+                  stories.
+                </p>
+              </article>
+            )}
           </div>
         </div>
       </section>
