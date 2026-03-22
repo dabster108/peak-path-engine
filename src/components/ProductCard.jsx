@@ -1,3 +1,4 @@
+// src\components\ProductCard.jsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatNpr } from "../utils/currency";
@@ -7,14 +8,35 @@ import "./ProductCard.css";
 
 const SIZE_OPTIONS = ["Small", "Medium", "Large", "XL"];
 
+// Pull the primary image URL from a product — works for both
+// API-sourced products (images array) and legacy hardcoded ones (gradient only)
+function getProductImage(product) {
+  if (
+    product.images &&
+    Array.isArray(product.images) &&
+    product.images.length > 0
+  ) {
+    const primary = product.images.find((img) => img && img.is_primary);
+    const img = primary || product.images[0];
+    return img && img.image ? img.image : null;
+  }
+  // normaliseProduct sets product.image for convenience
+  if (typeof product.image === "string" && product.image) return product.image;
+  return null;
+}
+
 export default function ProductCard({ product, index = 0 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedSize, setSelectedSize] = useState("Medium");
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
+  const [imgError, setImgError] = useState(false);
   const { addItem } = useCart();
   const navigate = useNavigate();
   const { name, category, price, originalPrice, badge, gradient } = product;
+
+  const imageUrl = getProductImage(product);
+  const showImage = imageUrl && !imgError;
 
   useEffect(() => {
     cacheProductForDetails(product);
@@ -22,14 +44,11 @@ export default function ProductCard({ product, index = 0 }) {
 
   useEffect(() => {
     if (!isOpen) return undefined;
-
     const handleEsc = (event) => {
       if (event.key === "Escape") setIsOpen(false);
     };
-
     window.addEventListener("keydown", handleEsc);
     document.body.classList.add("no-scroll");
-
     return () => {
       window.removeEventListener("keydown", handleEsc);
       document.body.classList.remove("no-scroll");
@@ -39,7 +58,6 @@ export default function ProductCard({ product, index = 0 }) {
   function incrementQty() {
     setQuantity((prev) => Math.min(10, prev + 1));
   }
-
   function decrementQty() {
     setQuantity((prev) => Math.max(1, prev - 1));
   }
@@ -71,34 +89,45 @@ export default function ProductCard({ product, index = 0 }) {
         style={{ transitionDelay: `${index * 80}ms` }}
       >
         <div className="product-card__image-wrap">
-          {/* Gradient placeholder with mountain SVG */}
           <div
             className="product-card__image"
             style={{
-              background:
-                gradient ||
-                "linear-gradient(135deg, #1B4332 0%, #2d6a4f 50%, #0d2b1e 100%)",
+              background: showImage
+                ? "#1a1a1a"
+                : gradient ||
+                  "linear-gradient(135deg, #1B4332 0%, #2d6a4f 50%, #0d2b1e 100%)",
             }}
           >
-            <svg
-              className="mountain-silhouette"
-              viewBox="0 0 300 200"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M0 200L60 100L100 140L150 60L200 120L240 80L300 130V200H0Z"
-                fill="rgba(255,255,255,0.06)"
+            {showImage ? (
+              /* ── Real product image from DB ── */
+              <img
+                src={imageUrl}
+                alt={name}
+                className="product-card__real-img"
+                onError={() => setImgError(true)}
               />
-              <path
-                d="M0 200L80 120L130 160L180 80L230 130L300 90V200H0Z"
-                fill="rgba(255,255,255,0.04)"
-              />
-              <path
-                d="M150 60L170 90L165 85L180 100L150 60Z"
-                fill="rgba(255,255,255,0.15)"
-              />
-            </svg>
+            ) : (
+              /* ── Gradient fallback with mountain SVG ── */
+              <svg
+                className="mountain-silhouette"
+                viewBox="0 0 300 200"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M0 200L60 100L100 140L150 60L200 120L240 80L300 130V200H0Z"
+                  fill="rgba(255,255,255,0.06)"
+                />
+                <path
+                  d="M0 200L80 120L130 160L180 80L230 130L300 90V200H0Z"
+                  fill="rgba(255,255,255,0.04)"
+                />
+                <path
+                  d="M150 60L170 90L165 85L180 100L150 60Z"
+                  fill="rgba(255,255,255,0.15)"
+                />
+              </svg>
+            )}
           </div>
           {badge && <span className="product-card__badge">{badge}</span>}
           <div className="product-card__overlay">
@@ -164,21 +193,38 @@ export default function ProductCard({ product, index = 0 }) {
             </button>
 
             <div className="product-quickview__preview">
-              <div className="product-quickview__preview-box">
-                <svg
-                  width="38"
-                  height="38"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.7"
+              {showImage ? (
+                <div className="product-quickview__preview-box product-quickview__preview-box--img">
+                  <img
+                    src={imageUrl}
+                    alt={name}
+                    onError={() => setImgError(true)}
+                  />
+                </div>
+              ) : (
+                <div
+                  className="product-quickview__preview-box"
+                  style={{
+                    background:
+                      gradient ||
+                      "linear-gradient(135deg, #1B4332 0%, #0d2b1e 100%)",
+                  }}
                 >
-                  <rect x="3" y="4" width="18" height="16" rx="2" />
-                  <path d="m3 14 5-5 4 4 4-3 5 4" />
-                  <circle cx="9" cy="9" r="1.4" />
-                </svg>
-                <span>Image preview</span>
-              </div>
+                  <svg
+                    width="38"
+                    height="38"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                  >
+                    <rect x="3" y="4" width="18" height="16" rx="2" />
+                    <path d="m3 14 5-5 4 4 4-3 5 4" />
+                    <circle cx="9" cy="9" r="1.4" />
+                  </svg>
+                  <span>Image preview</span>
+                </div>
+              )}
             </div>
 
             <div className="product-quickview__details">
