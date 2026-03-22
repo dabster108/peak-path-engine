@@ -1,6 +1,6 @@
 # shikharOutdoor\shop\serializers.py
 from rest_framework import serializers
-from .models import CustomUser, Product, ProductImage, Section, Badge, Category
+from .models import Cart, CartItem, CustomUser, Order, OrderItem, Product, ProductImage, Section, Badge, Category
 import re
 from django.contrib.auth.password_validation import validate_password
 
@@ -231,3 +231,64 @@ class UserListSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = ("id", "username", "first_name", "last_name", "email", "role", "is_staff", "is_superuser")
+
+
+
+class CartItemSerializer(serializers.ModelSerializer):
+    product_id   = serializers.IntegerField(source='product.id', read_only=True)
+    product_name = serializers.CharField(source='product.name', read_only=True)
+    product_category = serializers.CharField(source='product.category.name', read_only=True)
+    price        = serializers.DecimalField(source='product.price', max_digits=10, decimal_places=2, read_only=True)
+    image        = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = CartItem
+        fields = ('id', 'product_id', 'product_name', 'product_category', 'price', 'size', 'quantity', 'image')
+
+    def get_image(self, obj):
+        request = self.context.get('request')
+        images = obj.product.images.all()
+        primary = images.filter(is_primary=True).first() or images.first()
+        if primary and request:
+            return request.build_absolute_uri(primary.image.url)
+        return None
+
+
+class CartSerializer(serializers.ModelSerializer):
+    items = CartItemSerializer(many=True, read_only=True)
+
+    class Meta:
+        model  = Cart
+        fields = ('id', 'items', 'updated_at')
+
+
+class OrderItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = OrderItem
+        fields = ('id', 'product_id', 'name', 'category', 'price', 'size', 'quantity')
+
+
+class OrderSerializer(serializers.ModelSerializer):
+    items             = OrderItemSerializer(many=True, read_only=True)
+    status_label      = serializers.CharField(source='status', read_only=True)
+    status_index      = serializers.SerializerMethodField()
+    user_username     = serializers.CharField(source='user.username', read_only=True)
+    user_email        = serializers.CharField(source='user.email', read_only=True)
+
+    ORDER_STAGES = [
+        'Order Placed', 'Confirmed', 'Packed', 'Out for Delivery', 'Delivered'
+    ]
+
+    class Meta:
+        model  = Order
+        fields = (
+            'id', 'order_number', 'status', 'status_label', 'status_index',
+            'subtotal', 'created_at', 'estimated_delivery',
+            'items', 'user_username', 'user_email'
+        )
+
+    def get_status_index(self, obj):
+        try:
+            return self.ORDER_STAGES.index(obj.status)
+        except ValueError:
+            return 0

@@ -1,6 +1,6 @@
 # shikharOutdoor\shop\views.py
-import json
-import urllib.request
+from datetime import date, timedelta
+import json , secrets, string, urllib.request
 from urllib.error import HTTPError, URLError
 
 from rest_framework import generics
@@ -15,10 +15,12 @@ from google.auth.transport import requests
 
 from django.conf import settings
 
-from .models import CustomUser, Product, ProductImage, Section, Badge, Category
+from .models import Cart, CartItem, CustomUser, Order, OrderItem, Product, ProductImage, Section, Badge, Category
 from .serializers import (
     BadgeSerializer,
+    CartSerializer,
     CategorySerializer,
+    OrderSerializer,
     ProductImageSerializer,
     ProductSerializer,
     ProfileUpdateSerializer,
@@ -32,6 +34,11 @@ from .serializers import (
     GoogleAuthSerializer,
 )
 
+
+def generate_order_number():
+    alphabet = string.ascii_uppercase + string.digits
+    suffix = ''.join(secrets.choice(alphabet) for _ in range(8))
+    return f"SKR-{suffix}"
 
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
@@ -241,3 +248,164 @@ class ProductImageUploadView(APIView):
             return Response({"detail": "Image deleted."})
         except ProductImage.DoesNotExist:
             return Response({"error": "Image not found."}, status=404)
+
+
+
+
+# ── Cart ──────────────────────────────────────────────────
+
+class CartView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        cart, _ = Cart.objects.get_or_create(user=request.user)
+        serializer = CartSerializer(cart, context={'request': request})
+        return Response(serializer.data)
+
+    def delete(self, request):
+        # Clear entire cart
+        cart, _ = Cart.objects.get_or_create(user=request.user)
+        cart.items.all().delete()
+        return Response({'detail': 'Cart cleared.'})
+
+
+class CartItemView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        # Add or update item
+        product_id = request.data.get('product_id')
+        size       = request.data.get('size', 'Medium')
+        quantity   = int(request.data.get('quantity', 1))
+
+        try:
+            product = Product.objects.get(pk=product_id)
+        except Product.DoesNotExist:
+            return Response({'error': 'Product not found.'}, status=404)
+
+        cart, _ = Cart.objects.get_or_create(user=request.user)
+        item, created = CartItem.objects.get_or_create(
+            cart=cart, product=product, size=size,
+            defaults={'quantity': quantity}
+        )
+        if not created:
+            item.quantity = min(10, item.quantity + quantity)
+            item.save()
+
+        serializer = CartSerializer(cart, context={'request': request})
+        return Response(serializer.data, status=201)
+
+    def patch(self, request, item_id):
+        # Update quantity of a specific item
+        try:
+            cart = Cart.objects.get(user=request.user)
+            item = cart.items.get(pk=item_id)
+        except (Cart.DoesNotExist, CartItem.DoesNotExist):
+            return Response({'error': 'Item not found.'}, status=404)
+
+        quantity = int(request.data.get('quantity', item.quantity))
+        item.quantity = max(1, min(10, quantity))
+        item.save()
+
+        serializer = CartSerializer(cart, context={'request': request})
+        return Response(serializer.data)
+
+    def delete(self, request, item_id=None):
+        try:
+            cart = Cart.objects.get(user=request.user)
+            item = cart.items.get(pk=item_id)
+            item.delete()
+        except (Cart.DoesNotExist, CartItem.DoesNotExist):
+            return Response({'error': 'Item not found.'}, status=404)
+
+        serializer = CartSerializer(cart, context={'request': request})
+        return Response(serializer.data)
+
+
+# ── Orders ────────────────────────────────────────────────
+
+class OrderListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        orders = Order.objects.filter(user=request.user).order_by('-created_at')
+        serializer = OrderSerializer(orders, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        # Checkout: create order from cart
+        cart = Cart.objects.filter(user=request.user).first()
+        if not cart or not cart.items.exists():
+            return Response({'error': 'Cart is empty.'}, status=400)
+
+        subtotal = sum(
+            item.product.price * item.quantity for item in cart.items.all()
+        )
+        estimated_delivery = date.today() + timedelta(days=5)
+
+        order = Order.objects.create(
+            user=request.user,
+            order_number=generate_order_number(),
+            status='Order Placed',
+            subtotal=subtotal,
+            estimated_delivery=estimated_delivery,
+        )
+
+        for item in cart.items.all():
+            OrderItem.objects.create(
+                order=order,
+                product=item.product,
+                name=item.product.name,
+                category=item.product.category.name if item.product.category else '',
+                price=item.product.price,
+                size=item.size,
+                quantity=item.quantity,
+            )
+
+        # Clear cart after checkout
+        cart.items.all().delete()
+
+        serializer = OrderSerializer(order)
+        return Response(serializer.data, status=201)
+
+
+class AdminOrderListView(generics.ListAPIView):
+    """All orders — admin only"""
+    serializer_class   = OrderSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if not (user.role == 'admin' or user.is_staff or user.is_superuser):
+            return Order.objects.none()
+        return Order.objects.all().order_by('-created_at')
+
+
+class AdminOrderUpdateView(APIView):
+    """Update order status — admin only"""
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        user = request.user
+        if not (user.role == 'admin' or user.is_staff or user.is_superuser):
+            return Response({'error': 'Forbidden.'}, status=403)
+
+        try:
+            order = Order.objects.get(pk=pk)
+        except Order.DoesNotExist:
+            return Response({'error': 'Order not found.'}, status=404)
+
+        status_val = request.data.get('status')
+        valid = [c[0] for c in Order.STATUS_CHOICES]
+        if status_val not in valid:
+            return Response({'error': f'Invalid status. Must be one of: {valid}'}, status=400)
+
+        order.status = status_val
+        order.save()
+        return Response(OrderSerializer(order).data)
+
+
+
+
+
+

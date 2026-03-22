@@ -1,3 +1,4 @@
+// src\components\Navbar.jsx
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { allSearchItems, trendingSearches } from "../data/searchData";
@@ -119,12 +120,13 @@ export default function Navbar() {
   const avatarLetter = (displayName || "U").charAt(0).toUpperCase();
   const userEmail = user?.email || "no-email@shikhar.local";
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (items.length === 0) return;
 
-    const createdOrder = placeOrder(items, subtotal);
+    const createdOrder = await placeOrder(); 
     if (!createdOrder) return;
 
+    // Cart is cleared server-side; sync local state
     clearCart();
     setCartOpen(false);
     navigate(`/orders?orderId=${createdOrder.id}`);

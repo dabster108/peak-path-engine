@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import ProductCard from "../components/ProductCard";
 import ChatModal from "../components/ChatModal";
 import { useScrollAnimations } from "../hooks/useScrollAnimations";
+import api from "../utils/api";
 import "./Home.css";
 
 const categories = [
@@ -14,101 +15,35 @@ const categories = [
   "Trekking Gear",
 ];
 
-const featuredProducts = [
-  {
-    id: 1,
-    name: "Himalayan Down Parka",
-    category: "Men's",
-    price: 18999,
-    originalPrice: 24999,
-    badge: "Sale",
-    gradient: "linear-gradient(135deg, #1B4332 0%, #0d2b1e 100%)",
-  },
-  {
-    id: 2,
-    name: "Summit Shield Jacket",
-    category: "Women's",
-    price: 16499,
-    originalPrice: null,
-    badge: "New",
-    gradient: "linear-gradient(135deg, #2d3748 0%, #1a202c 100%)",
-  },
-  {
-    id: 3,
-    name: "Alpine Fleece Pullover",
-    category: "Men's",
-    price: 8999,
-    originalPrice: 11999,
-    badge: "Sale",
-    gradient: "linear-gradient(135deg, #744210 0%, #92400e 100%)",
-  },
-  {
-    id: 4,
-    name: "Trek Pro Pants",
-    category: "Women's",
-    price: 7499,
-    originalPrice: null,
-    badge: null,
-    gradient: "linear-gradient(135deg, #1e3a5f 0%, #1e40af 100%)",
-  },
-  {
-    id: 5,
-    name: "Everest Base Layer Set",
-    category: "Men's",
-    price: 5999,
-    originalPrice: 7999,
-    badge: "Sale",
-    gradient: "linear-gradient(135deg, #1B4332 0%, #065f46 100%)",
-  },
-  {
-    id: 6,
-    name: "Windwall Softshell",
-    category: "Women's",
-    price: 13999,
-    originalPrice: null,
-    badge: "Bestseller",
-    gradient: "linear-gradient(135deg, #3b1f5e 0%, #1e1b4b 100%)",
-  },
+// Fallback gradients cycled when a product has no image
+const GRADIENTS = [
+  "linear-gradient(135deg, #1B4332 0%, #0d2b1e 100%)",
+  "linear-gradient(135deg, #2d3748 0%, #1a202c 100%)",
+  "linear-gradient(135deg, #744210 0%, #92400e 100%)",
+  "linear-gradient(135deg, #1e3a5f 0%, #1e40af 100%)",
+  "linear-gradient(135deg, #1B4332 0%, #065f46 100%)",
+  "linear-gradient(135deg, #3b1f5e 0%, #1e1b4b 100%)",
+  "linear-gradient(135deg, #374151 0%, #111827 100%)",
+  "linear-gradient(135deg, #92400e 0%, #D97706 100%)",
 ];
 
-const moreProducts = [
-  {
-    id: 7,
-    name: "Ridge Runner Tee",
-    category: "Men's",
-    price: 2999,
-    originalPrice: null,
-    badge: null,
-    gradient: "linear-gradient(135deg, #374151 0%, #111827 100%)",
-  },
-  {
-    id: 8,
-    name: "Summit Cap",
-    category: "Accessories",
-    price: 1999,
-    originalPrice: 2499,
-    badge: "Sale",
-    gradient: "linear-gradient(135deg, #92400e 0%, #D97706 100%)",
-  },
-  {
-    id: 9,
-    name: "Glacier Gaiter",
-    category: "Footwear",
-    price: 4499,
-    originalPrice: null,
-    badge: "New",
-    gradient: "linear-gradient(135deg, #1e3a5f 0%, #0d2b1e 100%)",
-  },
-  {
-    id: 10,
-    name: "Trail Shorts",
-    category: "Women's",
-    price: 3499,
-    originalPrice: 4499,
-    badge: "Sale",
-    gradient: "linear-gradient(135deg, #3b1f5e 0%, #374151 100%)",
-  },
-];
+// Normalise a raw API product so ProductCard gets all the props it needs
+function normaliseProduct(p, index) {
+  const primaryImage =
+    p.images && p.images.length > 0
+      ? (p.images.find((img) => img.is_primary) || p.images[0]).image
+      : null;
+
+  return {
+    ...p,
+    price: parseFloat(p.price),
+    originalPrice: p.original_price ? parseFloat(p.original_price) : null,
+    badge: p.badge || null,
+    // If the product has a real image use it, otherwise fall back to a gradient
+    image: primaryImage || null,
+    gradient: primaryImage ? null : GRADIENTS[index % GRADIENTS.length],
+  };
+}
 
 function Counter({ end, suffix = "", prefix = "" }) {
   const [count, setCount] = useState(0);
@@ -149,6 +84,25 @@ export default function Home() {
   useScrollAnimations();
   const heroRef = useRef(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [featuredProducts, setFeaturedProducts] = useState([]);
+  const [moreProducts, setMoreProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch products from API
+  useEffect(() => {
+    api
+      .get("products/")
+      .then((res) => {
+        const all = res.data.map((p, i) => normaliseProduct(p, i));
+        // First 6 → featured, next 4 → "you may like"
+        setFeaturedProducts(all.slice(0, 6));
+        setMoreProducts(all.slice(6, 10));
+      })
+      .catch(() => {
+        // Silently fail — sections just render empty
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   // Parallax on hero
   useEffect(() => {
@@ -166,7 +120,6 @@ export default function Home() {
     <main className="home">
       {/* ====== HERO ====== */}
       <section className="hero" ref={heroRef}>
-        {/* Noise grain overlay */}
         <div className="hero__grain" />
         <div className="hero__overlay" />
         <div className="hero__content">
@@ -198,7 +151,6 @@ export default function Home() {
             </Link>
           </div>
         </div>
-        {/* Mountain SVG bottom decoration */}
         <div className="hero__mountain-bottom">
           <svg viewBox="0 0 1440 120" preserveAspectRatio="none" fill="none">
             <path
@@ -237,11 +189,17 @@ export default function Home() {
               </h2>
             </div>
           </div>
-          <div className="products-grid">
-            {featuredProducts.map((product, i) => (
-              <ProductCard key={product.id} product={product} index={i} />
-            ))}
-          </div>
+          {loading ? (
+            <div className="collection-loading">Loading products…</div>
+          ) : featuredProducts.length === 0 ? (
+            <div className="collection-loading">No products available yet.</div>
+          ) : (
+            <div className="products-grid">
+              {featuredProducts.map((product, i) => (
+                <ProductCard key={product.id} product={product} index={i} />
+              ))}
+            </div>
+          )}
           <div className="section-cta reveal">
             <Link to="/mens" className="btn btn-outline">
               View All Products
@@ -314,53 +272,14 @@ export default function Home() {
             >
               <span className="promise-orbit promise-orbit--one" />
               <span className="promise-orbit promise-orbit--two" />
-              <svg
-                viewBox="0 0 400 400"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <circle
-                  cx="200"
-                  cy="200"
-                  r="190"
-                  stroke="rgba(217,119,6,0.2)"
-                  strokeWidth="1"
-                />
-                <circle
-                  cx="200"
-                  cy="200"
-                  r="150"
-                  stroke="rgba(217,119,6,0.15)"
-                  strokeWidth="1"
-                />
-                <path
-                  d="M200 50L280 200L200 350L120 200Z"
-                  fill="rgba(217,119,6,0.08)"
-                  stroke="rgba(217,119,6,0.4)"
-                  strokeWidth="1.5"
-                />
-                <path
-                  d="M50 200L200 120L350 200L200 280Z"
-                  fill="rgba(255,255,255,0.04)"
-                  stroke="rgba(255,255,255,0.15)"
-                  strokeWidth="1"
-                />
-                <path
-                  d="M120 90L200 30L280 90L240 200L200 150L160 200Z"
-                  fill="rgba(217,119,6,0.12)"
-                />
+              <svg viewBox="0 0 400 400" fill="none">
+                <circle cx="200" cy="200" r="190" stroke="rgba(217,119,6,0.2)" strokeWidth="1" />
+                <circle cx="200" cy="200" r="150" stroke="rgba(217,119,6,0.15)" strokeWidth="1" />
+                <path d="M200 50L280 200L200 350L120 200Z" fill="rgba(217,119,6,0.08)" stroke="rgba(217,119,6,0.4)" strokeWidth="1.5" />
+                <path d="M50 200L200 120L350 200L200 280Z" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+                <path d="M120 90L200 30L280 90L240 200L200 150L160 200Z" fill="rgba(217,119,6,0.12)" />
                 <circle cx="200" cy="200" r="8" fill="rgba(217,119,6,0.6)" />
-                <text
-                  x="200"
-                  y="215"
-                  textAnchor="middle"
-                  fill="rgba(217,119,6,0.8)"
-                  fontFamily="Playfair Display"
-                  fontSize="12"
-                  letterSpacing="3"
-                >
-                  SUMMIT
-                </text>
+                <text x="200" y="215" textAnchor="middle" fill="rgba(217,119,6,0.8)" fontFamily="Playfair Display" fontSize="12" letterSpacing="3">SUMMIT</text>
               </svg>
             </div>
           </div>
@@ -378,25 +297,10 @@ export default function Home() {
         <div className="container">
           <div className="stats-grid">
             {[
-              {
-                value: 50,
-                suffix: "+",
-                label: "Countries Explored",
-                prefix: "",
-              },
-              {
-                value: 1000000,
-                suffix: "+",
-                label: "Adventurers Geared",
-                prefix: "",
-              },
-              {
-                value: 15,
-                suffix: "+",
-                label: "Years on the Summit",
-                prefix: "",
-              },
-              { value: 200, suffix: "+", label: "Peak Products", prefix: "" },
+              { value: 50,      suffix: "+", label: "Countries Explored",    prefix: "" },
+              { value: 1000000, suffix: "+", label: "Adventurers Geared",    prefix: "" },
+              { value: 15,      suffix: "+", label: "Years on the Summit",   prefix: "" },
+              { value: 200,     suffix: "+", label: "Peak Products",          prefix: "" },
             ].map((stat, i) => (
               <div
                 key={i}
@@ -404,11 +308,7 @@ export default function Home() {
                 style={{ transitionDelay: `${i * 100}ms` }}
               >
                 <div className="stat-number">
-                  <Counter
-                    end={stat.value}
-                    suffix={stat.suffix}
-                    prefix={stat.prefix}
-                  />
+                  <Counter end={stat.value} suffix={stat.suffix} prefix={stat.prefix} />
                 </div>
                 <p className="stat-label">{stat.label}</p>
               </div>
@@ -433,57 +333,23 @@ export default function Home() {
           </div>
           <div className="ugc-grid">
             {[
-              {
-                gradient: "linear-gradient(135deg, #1B4332, #0d2b1e)",
-                label: "Himalayan Trek",
-              },
-              {
-                gradient: "linear-gradient(135deg, #1e3a5f, #1B4332)",
-                label: "Summit Push",
-              },
-              {
-                gradient: "linear-gradient(135deg, #374151, #1e3a5f)",
-                label: "Base Camp",
-              },
-              {
-                gradient: "linear-gradient(135deg, #92400e, #1B4332)",
-                label: "Alpine Dawn",
-              },
-              {
-                gradient: "linear-gradient(135deg, #1a202c, #374151)",
-                label: "Night Climb",
-              },
-              {
-                gradient: "linear-gradient(135deg, #065f46, #1B4332)",
-                label: "Forest Trail",
-              },
+              { gradient: "linear-gradient(135deg, #1B4332, #0d2b1e)",  label: "Himalayan Trek" },
+              { gradient: "linear-gradient(135deg, #1e3a5f, #1B4332)",  label: "Summit Push" },
+              { gradient: "linear-gradient(135deg, #374151, #1e3a5f)",  label: "Base Camp" },
+              { gradient: "linear-gradient(135deg, #92400e, #1B4332)",  label: "Alpine Dawn" },
+              { gradient: "linear-gradient(135deg, #1a202c, #374151)",  label: "Night Climb" },
+              { gradient: "linear-gradient(135deg, #065f46, #1B4332)",  label: "Forest Trail" },
             ].map((item, i) => (
               <div
                 key={i}
                 className="ugc-item reveal"
-                style={{
-                  background: item.gradient,
-                  transitionDelay: `${i * 80}ms`,
-                }}
+                style={{ background: item.gradient, transitionDelay: `${i * 80}ms` }}
               >
                 <div className="ugc-item__overlay">
                   <span className="ugc-item__label">{item.label}</span>
                 </div>
-                <svg
-                  viewBox="0 0 200 200"
-                  fill="none"
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    width: "100%",
-                    height: "100%",
-                    opacity: 0.18,
-                  }}
-                >
-                  <path
-                    d="M0 200L70 70L120 130L160 50L200 100V200H0Z"
-                    fill="white"
-                  />
+                <svg viewBox="0 0 200 200" fill="none" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.18 }}>
+                  <path d="M0 200L70 70L120 130L160 50L200 100V200H0Z" fill="white" />
                 </svg>
               </div>
             ))}
@@ -502,59 +368,35 @@ export default function Home() {
               </h2>
             </div>
           </div>
-          <div className="products-grid products-grid--4">
-            {moreProducts.map((product, i) => (
-              <ProductCard key={product.id} product={product} index={i} />
-            ))}
-          </div>
+          {!loading && moreProducts.length > 0 && (
+            <div className="products-grid products-grid--4">
+              {moreProducts.map((product, i) => (
+                <ProductCard key={product.id} product={product} index={i} />
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
       {/* ====== BANNER CTA ====== */}
       <section className="cta-banner reveal-scale">
         <div className="cta-banner__bg">
-          <svg
-            viewBox="0 0 1440 200"
-            preserveAspectRatio="none"
-            fill="none"
-            style={{
-              position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
-              opacity: 0.06,
-            }}
-          >
-            <path
-              d="M0 200L180 60L360 120L540 20L720 100L900 30L1080 110L1260 40L1440 90V200H0Z"
-              fill="white"
-            />
+          <svg viewBox="0 0 1440 200" preserveAspectRatio="none" fill="none" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.06 }}>
+            <path d="M0 200L180 60L360 120L540 20L720 100L900 30L1080 110L1260 40L1440 90V200H0Z" fill="white" />
           </svg>
         </div>
         <div className="container">
           <div className="cta-banner__inner">
-            <span
-              className="section-label"
-              style={{ color: "rgba(255,255,255,0.6)" }}
-            >
-              Summit Season
-            </span>
+            <span className="section-label" style={{ color: "rgba(255,255,255,0.6)" }}>Summit Season</span>
             <h2>
               Every Trail Starts
               <br />
               with the Right Gear.
             </h2>
-            <p>
-              Discover the full SHIKHAR collection — built for those who never
-              stop.
-            </p>
+            <p>Discover the full SHIKHAR collection — built for those who never stop.</p>
             <div className="cta-banner__btns">
-              <Link to="/mens" className="btn btn-amber">
-                Shop Men's
-              </Link>
-              <Link to="/womens" className="btn btn-secondary">
-                Shop Women's
-              </Link>
+              <Link to="/mens" className="btn btn-amber">Shop Men's</Link>
+              <Link to="/womens" className="btn btn-secondary">Shop Women's</Link>
             </div>
           </div>
         </div>
@@ -576,81 +418,29 @@ export default function Home() {
                 summit packs. Tell us your trail, and we&apos;ll build your kit.
               </p>
               <ul className="home-chat-features">
-                <li>
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  Personalised gear recommendations
-                </li>
-                <li>
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  Size & fit guidance
-                </li>
-                <li>
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  Bulk & expedition orders
-                </li>
-                <li>
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  Reply within 24 hours
-                </li>
+                {[
+                  "Personalised gear recommendations",
+                  "Size & fit guidance",
+                  "Bulk & expedition orders",
+                  "Reply within 24 hours",
+                ].map((feat) => (
+                  <li key={feat}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    {feat}
+                  </li>
+                ))}
               </ul>
-              <button
-                className="btn btn-primary home-chat-btn"
-                onClick={() => setChatOpen(true)}
-              >
+              <button className="btn btn-primary home-chat-btn" onClick={() => setChatOpen(true)}>
                 Chat With Us
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path d="m22 2-7 20-4-9-9-4 20-7z" />
                   <path d="M22 2 11 13" />
                 </svg>
               </button>
             </div>
-            <div
-              className="home-chat-visual reveal-scale"
-              style={{ transitionDelay: "0.15s" }}
-            >
+            <div className="home-chat-visual reveal-scale" style={{ transitionDelay: "0.15s" }}>
               <div className="chat-card-preview">
                 <div className="chat-card-header">
                   <div className="chat-card-avatar">S</div>
@@ -661,22 +451,14 @@ export default function Home() {
                 </div>
                 <div className="chat-card-bubbles">
                   <div className="chat-bubble chat-bubble--in">
-                    Hi! I&apos;m planning an Everest Base Camp trek — what
-                    jacket do you recommend?
+                    Hi! I&apos;m planning an Everest Base Camp trek — what jacket do you recommend?
                   </div>
                   <div className="chat-bubble chat-bubble--out">
-                    Great choice! For EBC, we&apos;d recommend our Himalayan
-                    Down Parka paired with the Gore-Tex Alpine Shell. Want me to
-                    put together a full kit for you?
+                    Great choice! For EBC, we&apos;d recommend our Himalayan Down Parka paired with the Gore-Tex Alpine Shell. Want me to put together a full kit for you?
                   </div>
-                  <div className="chat-bubble chat-bubble--in">
-                    Yes please! 🏔️
-                  </div>
+                  <div className="chat-bubble chat-bubble--in">Yes please! 🏔️</div>
                 </div>
-                <button
-                  className="chat-card-cta"
-                  onClick={() => setChatOpen(true)}
-                >
+                <button className="chat-card-cta" onClick={() => setChatOpen(true)}>
                   Start Your Conversation →
                 </button>
               </div>
@@ -688,19 +470,8 @@ export default function Home() {
       <ChatModal isOpen={chatOpen} onClose={() => setChatOpen(false)} />
 
       {/* Floating Chat Button */}
-      <button
-        className="floating-chat-btn"
-        onClick={() => setChatOpen(true)}
-        aria-label="Chat with us"
-      >
-        <svg
-          width="22"
-          height="22"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-        >
+      <button className="floating-chat-btn" onClick={() => setChatOpen(true)} aria-label="Chat with us">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
         </svg>
         <span>Chat</span>
