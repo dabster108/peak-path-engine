@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useUser } from "../context/UserContext";
 import { useScrollAnimations } from "../hooks/useScrollAnimations";
+import api from "../utils/api";
 import "./Profile.css";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -59,13 +60,16 @@ export default function Profile() {
   const [errors, setErrors] = useState({});
   const [savedSection, setSavedSection] = useState("");
   const [passwordForm, setPasswordForm] = useState({
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: "",
+    old_password:     "",
+    new_password:     "",
+    confirm_password: "",
   });
-  const [passwordErrors, setPasswordErrors] = useState({});
-  const [passwordSaved, setPasswordSaved] = useState(false);
+  const [passwordErrors, setPasswordErrors]   = useState({});
+  const [passwordSaving, setPasswordSaving]   = useState(false);
+  const [passwordSaved, setPasswordSaved]     = useState(false);
+  const [passwordApiError, setPasswordApiError] = useState("");
 
+  // Keep form in sync when user loads from API
   useEffect(() => {
     setForm(getInitialForm(user, displayName));
   }, [user, displayName]);
@@ -113,8 +117,14 @@ export default function Profile() {
       }
     }
 
-    setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
+  const validate = () => {
+    const next = {};
+    if (!form.fullName.trim())                              next.fullName = "Full name is required.";
+    if (!form.email.trim())                                 next.email    = "Email is required.";
+    else if (!emailPattern.test(form.email.trim()))         next.email    = "Enter a valid email address.";
+    if (form.phone && form.phone.replace(/\D/g, "").length < 7) next.phone = "Phone number looks too short.";
+    setErrors(next);
+    return Object.keys(next).length === 0;
   };
 
   const handleProfileSave = (event) => {
@@ -151,17 +161,10 @@ export default function Profile() {
 
   const onChange = (field) => (event) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }));
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: undefined }));
-    }
+    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }));
   };
 
-  const onPasswordChange = (field) => (event) => {
-    setPasswordForm((prev) => ({ ...prev, [field]: event.target.value }));
-    if (passwordErrors[field]) {
-      setPasswordErrors((prev) => ({ ...prev, [field]: undefined }));
-    }
-  };
+  // ── Password form ────────────────────────────────────────
 
   const handleAvatarUpload = (event) => {
     const file = event.target.files?.[0];
@@ -209,51 +212,59 @@ export default function Profile() {
   };
 
   const validatePasswordForm = () => {
-    const nextErrors = {};
-    const current = passwordForm.currentPassword;
-    const next = passwordForm.newPassword;
-    const confirm = passwordForm.confirmPassword;
+    const next = {};
+    const { old_password, new_password, confirm_password } = passwordForm;
 
-    if (!current) {
-      nextErrors.currentPassword = "Current password is required.";
-    }
+    if (!old_password)                                                next.old_password     = "Current password is required.";
+    if (!new_password)                                                next.new_password     = "New password is required.";
+    else if (new_password.length < 8)                                 next.new_password     = "Use at least 8 characters.";
+    else if (!/[A-Za-z]/.test(new_password) || !/\d/.test(new_password)) next.new_password = "Include at least one letter and one number.";
+    if (!confirm_password)                                            next.confirm_password = "Please confirm your new password.";
+    else if (new_password !== confirm_password)                       next.confirm_password = "Passwords do not match.";
+    if (old_password && new_password && old_password === new_password) next.new_password   = "New password must be different.";
 
-    if (!next) {
-      nextErrors.newPassword = "New password is required.";
-    } else if (next.length < 8) {
-      nextErrors.newPassword = "Use at least 8 characters.";
-    } else if (!/[A-Za-z]/.test(next) || !/\d/.test(next)) {
-      nextErrors.newPassword = "Include at least one letter and one number.";
-    }
-
-    if (!confirm) {
-      nextErrors.confirmPassword = "Please confirm your new password.";
-    } else if (next !== confirm) {
-      nextErrors.confirmPassword = "Passwords do not match.";
-    }
-
-    if (current && next && current === next) {
-      nextErrors.newPassword = "New password must be different.";
-    }
-
-    setPasswordErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
+    setPasswordErrors(next);
+    return Object.keys(next).length === 0;
   };
 
-  const handlePasswordSave = (event) => {
+  const onPasswordChange = (field) => (event) => {
+    setPasswordForm((prev) => ({ ...prev, [field]: event.target.value }));
+    if (passwordErrors[field]) setPasswordErrors((prev) => ({ ...prev, [field]: undefined }));
+    if (passwordApiError) setPasswordApiError("");
+  };
+
+  const handlePasswordSave = async (event) => {
     event.preventDefault();
     setPasswordSaved(false);
-
+    setPasswordApiError("");
     if (!validatePasswordForm()) return;
 
-    // Frontend-only password update state for now.
-    setPasswordSaved(true);
-    setPasswordForm({
-      currentPassword: "",
-      newPassword: "",
-      confirmPassword: "",
-    });
-    setTimeout(() => setPasswordSaved(false), 1800);
+    setPasswordSaving(true);
+    try {
+      await api.post("change-password/", {
+        old_password:     passwordForm.old_password,
+        new_password:     passwordForm.new_password,
+        confirm_password: passwordForm.confirm_password,
+      });
+
+      setPasswordSaved(true);
+      setPasswordForm({ old_password: "", new_password: "", confirm_password: "" });
+      setTimeout(() => setPasswordSaved(false), 1800);
+    } catch (err) {
+      const data = err?.response?.data;
+      if (data?.old_password) {
+        setPasswordErrors((prev) => ({ ...prev, old_password: data.old_password[0] || "Incorrect password." }));
+      } else if (data?.detail) {
+        setPasswordApiError(data.detail);
+      } else if (data && typeof data === "object") {
+        const first = Object.values(data)[0];
+        setPasswordApiError(Array.isArray(first) ? first[0] : String(first));
+      } else {
+        setPasswordApiError("Failed to update password. Please try again.");
+      }
+    } finally {
+      setPasswordSaving(false);
+    }
   };
 
   return (
