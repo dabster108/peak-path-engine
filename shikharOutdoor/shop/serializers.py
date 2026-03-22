@@ -125,10 +125,26 @@ class ProductSerializer(serializers.ModelSerializer):
     category = serializers.CharField(source='category.name', allow_null=True, required=False)
     section  = serializers.CharField(source='section.name')
     badge    = serializers.CharField(source='badge.name', allow_null=True, required=False)
+    originalPrice = serializers.DecimalField(
+        source='original_price',
+        max_digits=10,
+        decimal_places=2,
+        allow_null=True,
+        required=False,
+    )
 
     class Meta:
         model = Product
-        fields = ("id", "name", "category", "section", "badge", "price", "stock")
+        fields = (
+            "id",
+            "name",
+            "category",
+            "section",
+            "badge",
+            "originalPrice",
+            "price",
+            "stock",
+        )
 
     def _get_or_create_related(self, model, name):
         if not name:

@@ -10,6 +10,7 @@ import "./Admin.css";
 const emptyForm = () => ({
   name: "",
   category: "",
+  originalPrice: "",
   price: "",
   stock: "",
   badge: "",
@@ -306,13 +307,39 @@ export default function Admin() {
 
   const saveEdit = async () => {
     if (!editRow.name.trim()) return;
+
+    const discountedPrice = Number(editRow.price);
+    const mrpValue =
+      editRow.originalPrice === "" || editRow.originalPrice === null
+        ? null
+        : Number(editRow.originalPrice);
+
+    if (Number.isNaN(discountedPrice) || discountedPrice < 0) {
+      showToast("Enter a valid discounted price.", "warning");
+      return;
+    }
+
+    if (mrpValue !== null && (Number.isNaN(mrpValue) || mrpValue < 0)) {
+      showToast("Enter a valid original price (MRP).", "warning");
+      return;
+    }
+
+    if (mrpValue !== null && discountedPrice > mrpValue) {
+      showToast(
+        "Discounted price cannot be greater than original price.",
+        "warning",
+      );
+      return;
+    }
+
     try {
       const res = await api.patch(`products/${editingId}/`, {
         name: editRow.name,
         category: editRow.category,
         section: editRow.section,
         badge: editRow.badge || null,
-        price: Number(editRow.price),
+        originalPrice: mrpValue,
+        price: discountedPrice,
         stock: Number(editRow.stock),
       });
       setProducts((prev) =>
@@ -362,6 +389,24 @@ export default function Admin() {
       setAddError("Enter a valid price.");
       return;
     }
+
+    if (
+      addForm.originalPrice !== "" &&
+      (isNaN(Number(addForm.originalPrice)) ||
+        Number(addForm.originalPrice) < 0)
+    ) {
+      setAddError("Enter a valid original price (MRP).");
+      return;
+    }
+
+    if (
+      addForm.originalPrice !== "" &&
+      Number(addForm.price) > Number(addForm.originalPrice)
+    ) {
+      setAddError("Discounted price cannot be greater than original price.");
+      return;
+    }
+
     if (!addForm.category) {
       setAddError("Please select a category.");
       return;
@@ -382,6 +427,8 @@ export default function Admin() {
         category: addForm.category,
         section: addForm.section,
         badge: addForm.badge || null,
+        originalPrice:
+          addForm.originalPrice === "" ? null : Number(addForm.originalPrice),
         price: Number(addForm.price),
         stock: Number(addForm.stock),
       });
@@ -1168,6 +1215,21 @@ export default function Admin() {
                     </select>
                   </div>
                   <div className="admin-field">
+                    <label>Original Price (NPR)</label>
+                    <input
+                      type="number"
+                      value={addForm.originalPrice}
+                      onChange={(e) =>
+                        setAddForm((f) => ({
+                          ...f,
+                          originalPrice: e.target.value,
+                        }))
+                      }
+                      placeholder="e.g. 15999"
+                      min="0"
+                    />
+                  </div>
+                  <div className="admin-field">
                     <label>Price (NPR) *</label>
                     <input
                       type="number"
@@ -1324,6 +1386,7 @@ export default function Admin() {
                       <th>Product</th>
                       <th>Category</th>
                       <th>Section</th>
+                      <th>Original</th>
                       <th>Price</th>
                       <th>Stock</th>
                       <th>Badge</th>
@@ -1333,7 +1396,7 @@ export default function Admin() {
                   <tbody>
                     {filtered.length === 0 && (
                       <tr>
-                        <td colSpan={7} className="admin-table__empty">
+                        <td colSpan={8} className="admin-table__empty">
                           No products match your filters.
                         </td>
                       </tr>
@@ -1440,6 +1503,20 @@ export default function Admin() {
                             <input
                               className="admin-cell-input admin-cell-input--sm"
                               type="number"
+                              value={editRow.originalPrice ?? ""}
+                              onChange={(e) =>
+                                setEditRow((r) => ({
+                                  ...r,
+                                  originalPrice: e.target.value,
+                                }))
+                              }
+                              min="0"
+                            />
+                          </td>
+                          <td>
+                            <input
+                              className="admin-cell-input admin-cell-input--sm"
+                              type="number"
                               value={editRow.price}
                               onChange={(e) =>
                                 setEditRow((r) => ({
@@ -1521,6 +1598,13 @@ export default function Admin() {
                             <span className="admin-cat-tag">{p.category}</span>
                           </td>
                           <td className="admin-table__section">{p.section}</td>
+                          <td className="admin-table__price">
+                            {p.originalPrice ? (
+                              formatNpr(p.originalPrice)
+                            ) : (
+                              <span className="admin-table__none">—</span>
+                            )}
+                          </td>
                           <td className="admin-table__price">
                             {formatNpr(p.price)}
                           </td>

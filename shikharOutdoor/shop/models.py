@@ -35,6 +35,7 @@ class Product(models.Model):
     category = models.ForeignKey(Category, related_name='products', on_delete=models.SET_NULL, null=True, blank=True)
     section  = models.ForeignKey(Section,  related_name='products', on_delete=models.CASCADE)
     badge    = models.ForeignKey(Badge,    related_name='products', on_delete=models.SET_NULL, null=True, blank=True)
+    original_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     price    = models.DecimalField(max_digits=10, decimal_places=2)
     stock    = models.PositiveIntegerField(default=0)
 
