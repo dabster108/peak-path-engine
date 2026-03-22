@@ -1,10 +1,10 @@
+// src\pages\CollectionPage.jsx
 import { useState } from "react";
 import ProductCard from "../components/ProductCard";
 import ChatModal from "../components/ChatModal";
 import { useScrollAnimations } from "../hooks/useScrollAnimations";
 import "./Collection.css";
 
-const sizes = ["XS", "S", "M", "L", "XL", "XXL"];
 const sortOptions = [
   "Featured",
   "Price: Low to High",
@@ -19,21 +19,27 @@ export default function CollectionPage({
   heroGradient,
   filters,
   products,
+  loading = false,
+  filterBy = "section", // "section" for Mens/Womens, "category" for Goretex/Footwear etc
 }) {
   useScrollAnimations();
   const [activeFilter, setActiveFilter] = useState("All");
   const [activeSort, setActiveSort] = useState("Featured");
-  const [showFilters, setShowFilters] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
 
   const filtered =
     activeFilter === "All"
       ? products
-      : products.filter((p) => p.category === activeFilter);
+      : products.filter((p) => {
+          const field = filterBy === "category" ? p.category : p.section;
+          return (field || "").toLowerCase() === activeFilter.toLowerCase();
+        });
 
   const sorted = [...filtered].sort((a, b) => {
-    if (activeSort === "Price: Low to High") return a.price - b.price;
-    if (activeSort === "Price: High to Low") return b.price - a.price;
+    if (activeSort === "Price: Low to High")
+      return parseFloat(a.price) - parseFloat(b.price);
+    if (activeSort === "Price: High to Low")
+      return parseFloat(b.price) - parseFloat(a.price);
     return 0;
   });
 
@@ -73,7 +79,9 @@ export default function CollectionPage({
               ))}
             </div>
             <div className="collection-bar__right">
-              <span className="collection-count">{sorted.length} items</span>
+              <span className="collection-count">
+                {loading ? "…" : `${sorted.length} items`}
+              </span>
               <select
                 className="sort-select"
                 value={activeSort}
@@ -91,11 +99,17 @@ export default function CollectionPage({
       {/* Products Grid */}
       <section className="collection-grid-section">
         <div className="container">
-          <div className="collection-grid">
-            {sorted.map((product, i) => (
-              <ProductCard key={product.id} product={product} index={i} />
-            ))}
-          </div>
+          {loading ? (
+            <div className="collection-loading">Loading products…</div>
+          ) : sorted.length === 0 ? (
+            <div className="collection-loading">No products found.</div>
+          ) : (
+            <div className="collection-grid">
+              {sorted.map((product, i) => (
+                <ProductCard key={product.id} product={product} index={i} />
+              ))}
+            </div>
+          )}
         </div>
       </section>
 

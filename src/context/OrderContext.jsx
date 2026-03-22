@@ -1,152 +1,112 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
-
-const ORDER_KEY = "shikhar_orders";
-const ORDER_STAGES = [
-  "Order Placed",
-  "Confirmed",
-  "Packed",
-  "Out for Delivery",
-  "Delivered",
-];
-
-function readStoredOrders() {
-  try {
-    const raw = localStorage.getItem(ORDER_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-function persistOrders(orders) {
-  localStorage.setItem(ORDER_KEY, JSON.stringify(orders));
-}
-
-function makeOrderNumber() {
-  return `SHK-${Date.now().toString(36).toUpperCase()}`;
-}
-
-function createOrder(items, subtotal) {
-  const now = new Date();
-  const eta = new Date(now);
-  eta.setDate(eta.getDate() + 4);
-
-  return {
-    id: `${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-    orderNumber: makeOrderNumber(),
-    statusIndex: 1,
-    statusLabel: "Confirmed",
-    createdAt: now.toISOString(),
-    estimatedDelivery: eta.toISOString(),
-    subtotal,
-    items: items.map((item) => ({ ...item })),
-  };
-}
-
-function normalizeStatus(index, fallbackLabel = "Processing") {
-  if (Number.isInteger(index) && index >= 0 && index < ORDER_STAGES.length) {
-    return {
-      statusIndex: index,
-      statusLabel: ORDER_STAGES[index],
-    };
-  }
-
-  return {
-    statusIndex: 0,
-    statusLabel: fallbackLabel,
-  };
-}
+// src\context\OrderContext.jsx
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
+import api from "../utils/api";
+import { isAuthenticated } from "../App";
 
 const OrderContext = createContext(null);
 
 export function OrderProvider({ children }) {
-  const [orders, setOrders] = useState(() => readStoredOrders());
+  const [orders, setOrders]   = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const refreshOrders = () => {
-      setOrders(readStoredOrders());
-    };
-
-    const handleStorage = (event) => {
-      if (event.key === ORDER_KEY) {
-        refreshOrders();
-      }
-    };
-
-    window.addEventListener("storage", handleStorage);
-    window.addEventListener("orders-changed", refreshOrders);
-
-    return () => {
-      window.removeEventListener("storage", handleStorage);
-      window.removeEventListener("orders-changed", refreshOrders);
-    };
+  // ── Fetch orders from API ─────────────────────────────
+  const fetchOrders = useCallback(async () => {
+    if (!isAuthenticated()) return;
+    setLoading(true);
+    try {
+      const res = await api.get("orders/");
+      // Normalise to the shape MyOrders.jsx and Admin.jsx already expect
+      const normalised = res.data.map((o) => ({
+        id:                String(o.id),
+        orderNumber:       o.order_number,
+        statusLabel:       o.status,
+        statusIndex:       o.status_index,
+        subtotal:          parseFloat(o.subtotal),
+        createdAt:         o.created_at,
+        estimatedDelivery: o.estimated_delivery,
+        items:             (o.items || []).map((item) => ({
+          id:       item.id,
+          name:     item.name,
+          category: item.category,
+          price:    parseFloat(item.price),
+          size:     item.size,
+          quantity: item.quantity,
+        })),
+      }));
+      setOrders(normalised);
+    } catch {
+      // Silently fail
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const placeOrder = (items, subtotal) => {
-    if (!Array.isArray(items) || items.length === 0) return null;
+  useEffect(() => {
+    fetchOrders();
+    const handler = () => fetchOrders();
+    window.addEventListener("auth-changed", handler);
+    return () => window.removeEventListener("auth-changed", handler);
+  }, [fetchOrders]);
 
-    const nextOrder = createOrder(items, subtotal);
+  // ── Place order (checkout) ────────────────────────────
+  // Called by Navbar checkout button — posts to API which reads the DB cart
+  const placeOrder = useCallback(async () => {
+    try {
+      const res = await api.post("orders/");
+      const o = res.data;
+      const newOrder = {
+        id:                String(o.id),
+        orderNumber:       o.order_number,
+        statusLabel:       o.status,
+        statusIndex:       o.status_index,
+        subtotal:          parseFloat(o.subtotal),
+        createdAt:         o.created_at,
+        estimatedDelivery: o.estimated_delivery,
+        items:             (o.items || []).map((item) => ({
+          id:       item.id,
+          name:     item.name,
+          category: item.category,
+          price:    parseFloat(item.price),
+          size:     item.size,
+          quantity: item.quantity,
+        })),
+      };
+      setOrders((prev) => [newOrder, ...prev]);
+      return newOrder;
+    } catch (err) {
+      console.error("Order placement failed:", err);
+      return null;
+    }
+  }, []);
 
-    setOrders((prev) => {
-      const updated = [nextOrder, ...prev];
-      persistOrders(updated);
-      window.dispatchEvent(new Event("orders-changed"));
-      return updated;
-    });
-
-    return nextOrder;
-  };
-
-  const getOrderById = (orderId) =>
-    orders.find((order) => String(order.id) === String(orderId));
-
-  const updateOrderStatus = (orderId, statusIndex, statusLabel) => {
-    let updatedOrder = null;
-    const normalized = normalizeStatus(
-      statusIndex,
-      statusLabel || "Processing",
-    );
-
-    setOrders((prev) => {
-      const updated = prev.map((order) => {
-        if (String(order.id) !== String(orderId)) return order;
-
-        updatedOrder = {
-          ...order,
-          statusIndex: normalized.statusIndex,
-          statusLabel: statusLabel || normalized.statusLabel,
-          updatedAt: new Date().toISOString(),
-        };
-        return updatedOrder;
-      });
-
-      persistOrders(updated);
-      window.dispatchEvent(new Event("orders-changed"));
-      return updated;
-    });
-
-    return updatedOrder;
-  };
+  // ── Update order status (admin) ───────────────────────
+  const updateOrderStatus = useCallback(async (orderId, statusIndex, statusLabel) => {
+    try {
+      const res = await api.patch(`admin/orders/${orderId}/`, { status: statusLabel });
+      const updated = res.data;
+      setOrders((prev) =>
+        prev.map((o) =>
+          String(o.id) === String(orderId)
+            ? { ...o, statusLabel: updated.status, statusIndex: updated.status_index }
+            : o
+        )
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
 
   const value = useMemo(
-    () => ({
-      orders,
-      placeOrder,
-      getOrderById,
-      updateOrderStatus,
-    }),
-    [orders],
+    () => ({ orders, loading, fetchOrders, placeOrder, updateOrderStatus }),
+    [orders, loading, fetchOrders, placeOrder, updateOrderStatus]
   );
 
-  return (
-    <OrderContext.Provider value={value}>{children}</OrderContext.Provider>
-  );
+  return <OrderContext.Provider value={value}>{children}</OrderContext.Provider>;
 }
 
 export function useOrders() {
-  const context = useContext(OrderContext);
-  if (!context) {
-    throw new Error("useOrders must be used within OrderProvider");
-  }
-  return context;
+  const ctx = useContext(OrderContext);
+  if (!ctx) throw new Error("useOrders must be used within OrderProvider");
+  return ctx;
 }

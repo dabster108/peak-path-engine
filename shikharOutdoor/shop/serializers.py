@@ -1,6 +1,6 @@
 # shikharOutdoor\shop\serializers.py
 from rest_framework import serializers
-from .models import CustomUser, Product, Section, Badge, Category
+from .models import Cart, CartItem, CustomUser, Order, OrderItem, Product, ProductImage, Section, Badge, Category
 import re
 from django.contrib.auth.password_validation import validate_password
 
@@ -69,12 +69,11 @@ class RegisterSerializer(serializers.ModelSerializer):
         return value.lower()
 
     def create(self, validated_data):
-        # Sanitize: strip spaces/special chars, fallback to email prefix
         raw = validated_data.get("username") or validated_data["email"].split("@")[0]
         base = re.sub(r'[^\w.@+-]', '', raw.replace(" ", "_")).strip("_") \
                or validated_data["email"].split("@")[0]
 
-        # Ensure uniqueness
+    
         username = base
         counter = 1
         while CustomUser.objects.filter(username=username).exists():
@@ -120,31 +119,29 @@ class LoginSerializer(serializers.Serializer):
 class GoogleAuthSerializer(serializers.Serializer):
     token = serializers.CharField()
 
+class ProductImageSerializer(serializers.ModelSerializer):
+    image = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProductImage
+        fields = ("id", "image", "is_primary", "order")
+
+    def get_image(self, obj):
+        request = self.context.get("request")
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        return obj.image.url if obj.image else None
+
+
 class ProductSerializer(serializers.ModelSerializer):
-    # Read as string names, write as string names
     category = serializers.CharField(source='category.name', allow_null=True, required=False)
     section  = serializers.CharField(source='section.name')
     badge    = serializers.CharField(source='badge.name', allow_null=True, required=False)
-    originalPrice = serializers.DecimalField(
-        source='original_price',
-        max_digits=10,
-        decimal_places=2,
-        allow_null=True,
-        required=False,
-    )
+    images   = ProductImageSerializer(many=True, read_only=True)  # ← add this
 
     class Meta:
         model = Product
-        fields = (
-            "id",
-            "name",
-            "category",
-            "section",
-            "badge",
-            "originalPrice",
-            "price",
-            "stock",
-        )
+        fields = ("id", "name", "category", "section", "badge", "price", "stock", "images")
 
     def _get_or_create_related(self, model, name):
         if not name:
@@ -156,7 +153,6 @@ class ProductSerializer(serializers.ModelSerializer):
         category_name = (validated_data.pop('category', None) or {}).get('name')
         section_name  = (validated_data.pop('section', {})).get('name')
         badge_name    = (validated_data.pop('badge', None) or {}).get('name')
-
         return Product.objects.create(
             category=self._get_or_create_related(Category, category_name),
             section=self._get_or_create_related(Section, section_name),
@@ -168,19 +164,16 @@ class ProductSerializer(serializers.ModelSerializer):
         category_name = (validated_data.pop('category', None) or {}).get('name')
         section_name  = (validated_data.pop('section', {}) or {}).get('name')
         badge_name    = (validated_data.pop('badge', None) or {}).get('name')
-
         if category_name is not None:
             instance.category = self._get_or_create_related(Category, category_name)
         if section_name is not None:
             instance.section = self._get_or_create_related(Section, section_name)
         if badge_name is not None:
             instance.badge = self._get_or_create_related(Badge, badge_name)
-
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
         return instance
-    
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -196,3 +189,106 @@ class BadgeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Badge
         fields = ("id", "name")
+
+
+
+class ProfileUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = ("username", "first_name", "last_name", "email")
+
+    def validate_email(self, value):
+        user = self.instance
+        if CustomUser.objects.filter(email__iexact=value).exclude(pk=user.pk).exists():
+            raise serializers.ValidationError("This email is already in use.")
+        return value.lower()
+
+    def validate_username(self, value):
+        user = self.instance
+        if CustomUser.objects.filter(username=value).exclude(pk=user.pk).exists():
+            raise serializers.ValidationError("This username is already taken.")
+        return value
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password     = serializers.CharField()
+    new_password     = serializers.CharField(min_length=6)
+    confirm_password = serializers.CharField()
+
+    def validate(self, data):
+        if data["new_password"] != data["confirm_password"]:
+            raise serializers.ValidationError("New passwords do not match.")
+        return data
+
+    def validate_old_password(self, value):
+        user = self.context["request"].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("Current password is incorrect.")
+        return value
+
+
+class UserListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = ("id", "username", "first_name", "last_name", "email", "role", "is_staff", "is_superuser")
+
+
+
+class CartItemSerializer(serializers.ModelSerializer):
+    product_id   = serializers.IntegerField(source='product.id', read_only=True)
+    product_name = serializers.CharField(source='product.name', read_only=True)
+    product_category = serializers.CharField(source='product.category.name', read_only=True)
+    price        = serializers.DecimalField(source='product.price', max_digits=10, decimal_places=2, read_only=True)
+    image        = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = CartItem
+        fields = ('id', 'product_id', 'product_name', 'product_category', 'price', 'size', 'quantity', 'image')
+
+    def get_image(self, obj):
+        request = self.context.get('request')
+        images = obj.product.images.all()
+        primary = images.filter(is_primary=True).first() or images.first()
+        if primary and request:
+            return request.build_absolute_uri(primary.image.url)
+        return None
+
+
+class CartSerializer(serializers.ModelSerializer):
+    items = CartItemSerializer(many=True, read_only=True)
+
+    class Meta:
+        model  = Cart
+        fields = ('id', 'items', 'updated_at')
+
+
+class OrderItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = OrderItem
+        fields = ('id', 'product_id', 'name', 'category', 'price', 'size', 'quantity')
+
+
+class OrderSerializer(serializers.ModelSerializer):
+    items             = OrderItemSerializer(many=True, read_only=True)
+    status_label      = serializers.CharField(source='status', read_only=True)
+    status_index      = serializers.SerializerMethodField()
+    user_username     = serializers.CharField(source='user.username', read_only=True)
+    user_email        = serializers.CharField(source='user.email', read_only=True)
+
+    ORDER_STAGES = [
+        'Order Placed', 'Confirmed', 'Packed', 'Out for Delivery', 'Delivered'
+    ]
+
+    class Meta:
+        model  = Order
+        fields = (
+            'id', 'order_number', 'status', 'status_label', 'status_index',
+            'subtotal', 'created_at', 'estimated_delivery',
+            'items', 'user_username', 'user_email'
+        )
+
+    def get_status_index(self, obj):
+        try:
+            return self.ORDER_STAGES.index(obj.status)
+        except ValueError:
+            return 0

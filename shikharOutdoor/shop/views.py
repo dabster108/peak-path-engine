@@ -1,13 +1,13 @@
 # shikharOutdoor\shop\views.py
-import json
-import urllib.request
+from datetime import date, timedelta
+import json , secrets, string, urllib.request
 from urllib.error import HTTPError, URLError
 
 from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.views import APIView
-
+from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from google.oauth2 import id_token
@@ -15,20 +15,30 @@ from google.auth.transport import requests
 
 from django.conf import settings
 
-from .models import CustomUser, Product, Section, Badge, Category
+from .models import Cart, CartItem, CustomUser, Order, OrderItem, Product, ProductImage, Section, Badge, Category
 from .serializers import (
     BadgeSerializer,
+    CartSerializer,
     CategorySerializer,
+    OrderSerializer,
+    ProductImageSerializer,
     ProductSerializer,
+    ProfileUpdateSerializer,
     RegisterSerializer,
     LoginSerializer,
     SectionSerializer,
+    UserListSerializer,
     UserSerializer,
     ProfileSettingsSerializer,
     ChangePasswordSerializer,
     GoogleAuthSerializer,
 )
 
+
+def generate_order_number():
+    alphabet = string.ascii_uppercase + string.digits
+    suffix = ''.join(secrets.choice(alphabet) for _ in range(8))
+    return f"SKR-{suffix}"
 
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
@@ -105,40 +115,70 @@ class GoogleLoginView(APIView):
         })
 
 
-class ProfileView(generics.RetrieveUpdateAPIView):
+class ProfileView(generics.RetrieveUpdateAPIView):       
+    serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
 
     def get_object(self):
         return self.request.user
 
     def get_serializer_class(self):
-        if self.request.method in ["PATCH", "PUT"]:
-            return ProfileSettingsSerializer
+        if self.request.method in ("PUT", "PATCH"):
+            return ProfileUpdateSerializer
         return UserSerializer
-
-
-class UserListView(generics.ListAPIView):
-    serializer_class = UserSerializer
-    permission_classes = [IsAdminUser]
-    queryset = CustomUser.objects.all().order_by("-date_joined")
-
 
 class ChangePasswordView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        serializer = ChangePasswordSerializer(data=request.data, context={"request": request})
+        serializer = ChangePasswordSerializer(
+            data=request.data,
+            context={"request": request}
+        )
         serializer.is_valid(raise_exception=True)
-
-        user = request.user
-        user.set_password(serializer.validated_data["new_password"])
-        user.save(update_fields=["password"])
-
+        request.user.set_password(serializer.validated_data["new_password"])
+        request.user.save()
         return Response({"detail": "Password updated successfully."})
-    
-class AddProductView(generics.CreateAPIView):
-    serializer_class = ProductSerializer
+
+
+class UserListView(generics.ListAPIView):
+    serializer_class = UserListSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.role != "admin" and not self.request.user.is_staff:
+            return CustomUser.objects.none()
+        return CustomUser.objects.all().order_by("-date_joined")
+    
+    
+class AddProductView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def post(self, request):
+        data = {
+            "name":     request.data.get("name"),
+            "category": request.data.get("category"),
+            "section":  request.data.get("section"),
+            "badge":    request.data.get("badge") or None,
+            "price":    request.data.get("price"),
+            "stock":    request.data.get("stock"),
+        }
+
+        serializer = ProductSerializer(data=data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        product = serializer.save()
+
+        images = request.FILES.getlist("images")
+        for i, image_file in enumerate(images):
+            ProductImage.objects.create(
+                product=product,
+                image=image_file,
+                is_primary=(i == 0),
+                order=i,
+            )
+        result = ProductSerializer(product, context={"request": request})
+        return Response(result.data, status=201)
 
 
 class ProductListView(generics.ListAPIView):
@@ -166,3 +206,206 @@ class BadgeListView(generics.ListAPIView):
     serializer_class = BadgeSerializer
     permission_classes = [AllowAny]
     queryset = Badge.objects.all()
+
+
+class ProductImageUploadView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, pk):
+        try:
+            product = Product.objects.get(pk=pk)
+        except Product.DoesNotExist:
+            return Response({"error": "Product not found."}, status=404)
+
+        images = request.FILES.getlist("images")
+        if not images:
+            return Response({"error": "No images provided."}, status=400)
+
+        created = []
+        for i, image_file in enumerate(images):
+            # First uploaded image becomes primary if none exists
+            is_primary = (i == 0 and not product.images.exists())
+            img = ProductImage.objects.create(
+                product=product,
+                image=image_file,
+                is_primary=is_primary,
+                order=product.images.count(),
+            )
+            created.append(img)
+
+        serializer = ProductImageSerializer(
+            created, many=True, context={"request": request}
+        )
+        return Response(serializer.data, status=201)
+
+    def delete(self, request, pk):
+        image_id = request.data.get("image_id")
+        try:
+            image = ProductImage.objects.get(pk=image_id, product__pk=pk)
+            image.image.delete(save=False)  # delete file from disk
+            image.delete()
+            return Response({"detail": "Image deleted."})
+        except ProductImage.DoesNotExist:
+            return Response({"error": "Image not found."}, status=404)
+
+
+
+
+# ── Cart ──────────────────────────────────────────────────
+
+class CartView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        cart, _ = Cart.objects.get_or_create(user=request.user)
+        serializer = CartSerializer(cart, context={'request': request})
+        return Response(serializer.data)
+
+    def delete(self, request):
+        # Clear entire cart
+        cart, _ = Cart.objects.get_or_create(user=request.user)
+        cart.items.all().delete()
+        return Response({'detail': 'Cart cleared.'})
+
+
+class CartItemView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        # Add or update item
+        product_id = request.data.get('product_id')
+        size       = request.data.get('size', 'Medium')
+        quantity   = int(request.data.get('quantity', 1))
+
+        try:
+            product = Product.objects.get(pk=product_id)
+        except Product.DoesNotExist:
+            return Response({'error': 'Product not found.'}, status=404)
+
+        cart, _ = Cart.objects.get_or_create(user=request.user)
+        item, created = CartItem.objects.get_or_create(
+            cart=cart, product=product, size=size,
+            defaults={'quantity': quantity}
+        )
+        if not created:
+            item.quantity = min(10, item.quantity + quantity)
+            item.save()
+
+        serializer = CartSerializer(cart, context={'request': request})
+        return Response(serializer.data, status=201)
+
+    def patch(self, request, item_id):
+        # Update quantity of a specific item
+        try:
+            cart = Cart.objects.get(user=request.user)
+            item = cart.items.get(pk=item_id)
+        except (Cart.DoesNotExist, CartItem.DoesNotExist):
+            return Response({'error': 'Item not found.'}, status=404)
+
+        quantity = int(request.data.get('quantity', item.quantity))
+        item.quantity = max(1, min(10, quantity))
+        item.save()
+
+        serializer = CartSerializer(cart, context={'request': request})
+        return Response(serializer.data)
+
+    def delete(self, request, item_id=None):
+        try:
+            cart = Cart.objects.get(user=request.user)
+            item = cart.items.get(pk=item_id)
+            item.delete()
+        except (Cart.DoesNotExist, CartItem.DoesNotExist):
+            return Response({'error': 'Item not found.'}, status=404)
+
+        serializer = CartSerializer(cart, context={'request': request})
+        return Response(serializer.data)
+
+
+# ── Orders ────────────────────────────────────────────────
+
+class OrderListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        orders = Order.objects.filter(user=request.user).order_by('-created_at')
+        serializer = OrderSerializer(orders, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        # Checkout: create order from cart
+        cart = Cart.objects.filter(user=request.user).first()
+        if not cart or not cart.items.exists():
+            return Response({'error': 'Cart is empty.'}, status=400)
+
+        subtotal = sum(
+            item.product.price * item.quantity for item in cart.items.all()
+        )
+        estimated_delivery = date.today() + timedelta(days=5)
+
+        order = Order.objects.create(
+            user=request.user,
+            order_number=generate_order_number(),
+            status='Order Placed',
+            subtotal=subtotal,
+            estimated_delivery=estimated_delivery,
+        )
+
+        for item in cart.items.all():
+            OrderItem.objects.create(
+                order=order,
+                product=item.product,
+                name=item.product.name,
+                category=item.product.category.name if item.product.category else '',
+                price=item.product.price,
+                size=item.size,
+                quantity=item.quantity,
+            )
+
+        # Clear cart after checkout
+        cart.items.all().delete()
+
+        serializer = OrderSerializer(order)
+        return Response(serializer.data, status=201)
+
+
+class AdminOrderListView(generics.ListAPIView):
+    """All orders — admin only"""
+    serializer_class   = OrderSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if not (user.role == 'admin' or user.is_staff or user.is_superuser):
+            return Order.objects.none()
+        return Order.objects.all().order_by('-created_at')
+
+
+class AdminOrderUpdateView(APIView):
+    """Update order status — admin only"""
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        user = request.user
+        if not (user.role == 'admin' or user.is_staff or user.is_superuser):
+            return Response({'error': 'Forbidden.'}, status=403)
+
+        try:
+            order = Order.objects.get(pk=pk)
+        except Order.DoesNotExist:
+            return Response({'error': 'Order not found.'}, status=404)
+
+        status_val = request.data.get('status')
+        valid = [c[0] for c in Order.STATUS_CHOICES]
+        if status_val not in valid:
+            return Response({'error': f'Invalid status. Must be one of: {valid}'}, status=400)
+
+        order.status = status_val
+        order.save()
+        return Response(OrderSerializer(order).data)
+
+
+
+
+
+
