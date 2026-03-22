@@ -11,6 +11,7 @@ import "./Admin.css";
 const emptyForm = () => ({
   name: "",
   category: "",
+  originalPrice: "",
   price: "",
   stock: "",
   badge: "",
@@ -230,6 +231,31 @@ export default function Admin() {
 
   const saveEdit = async () => {
     if (!editRow.name.trim()) return;
+
+    const discountedPrice = Number(editRow.price);
+    const mrpValue =
+      editRow.originalPrice === "" || editRow.originalPrice === null
+        ? null
+        : Number(editRow.originalPrice);
+
+    if (Number.isNaN(discountedPrice) || discountedPrice < 0) {
+      showToast("Enter a valid discounted price.", "warning");
+      return;
+    }
+
+    if (mrpValue !== null && (Number.isNaN(mrpValue) || mrpValue < 0)) {
+      showToast("Enter a valid original price (MRP).", "warning");
+      return;
+    }
+
+    if (mrpValue !== null && discountedPrice > mrpValue) {
+      showToast(
+        "Discounted price cannot be greater than original price.",
+        "warning",
+      );
+      return;
+    }
+
     try {
       const res = await api.patch(`products/${editingId}/`, {
         name:     editRow.name,

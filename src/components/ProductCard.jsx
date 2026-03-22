@@ -230,7 +230,14 @@ export default function ProductCard({ product, index = 0 }) {
             <div className="product-quickview__details">
               <p className="product-quickview__category">{category}</p>
               <h4>{name}</h4>
-              <p className="product-quickview__price">{formatNpr(price)}</p>
+              <p className="product-quickview__price">
+                {originalPrice && (
+                  <span className="product-card__original">
+                    {formatNpr(originalPrice)}
+                  </span>
+                )}
+                <span>{formatNpr(price)}</span>
+              </p>
 
               <div className="product-quickview__field">
                 <span className="product-quickview__label">Size</span>
