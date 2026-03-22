@@ -1,4 +1,7 @@
-import { createContext, useContext, useMemo, useState } from "react";
+// src\context\UserContext.jsx
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import api from "../utils/api";
+import { isAuthenticated } from "../App";
 
 const USER_KEY = "shikhar_user";
 
@@ -21,20 +24,9 @@ function persistUser(user) {
 
 function buildDisplayName(user) {
   if (!user) return "";
-
-  const fromFullName = [user.first_name, user.last_name]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
-  if (fromFullName) return fromFullName;
-
-  return (
-    user.full_name ||
-    user.name ||
-    user.username ||
-    (user.email ? user.email.split("@")[0] : "") ||
-    ""
-  );
+  const fromName = [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
+  if (fromName) return fromName;
+  return user.full_name || user.name || user.username || (user.email ? user.email.split("@")[0] : "") || "";
 }
 
 function hasAdminAccess(user) {
@@ -45,28 +37,47 @@ function hasAdminAccess(user) {
 const UserContext = createContext(null);
 
 export function UserProvider({ children }) {
+  // Start from localStorage cache so UI renders immediately
   const [user, setUserState] = useState(() => readStoredUser());
 
-  const setUser = (nextUser) => {
+  const setUser = useCallback((nextUser) => {
     setUserState(nextUser || null);
     persistUser(nextUser || null);
     window.dispatchEvent(new Event("user-changed"));
-  };
+  }, []);
 
-  const updateUser = (partial) => {
+  const updateUser = useCallback((partial) => {
     setUserState((prev) => {
       const merged = { ...(prev || {}), ...partial };
       persistUser(merged);
       window.dispatchEvent(new Event("user-changed"));
       return merged;
     });
-  };
+  }, []);
 
-  const clearUser = () => {
+  const clearUser = useCallback(() => {
     setUserState(null);
     persistUser(null);
     window.dispatchEvent(new Event("user-changed"));
-  };
+  }, []);
+
+  // ── Fetch fresh user from API on mount and on auth changes ──
+  const fetchUser = useCallback(async () => {
+    if (!isAuthenticated()) return;
+    try {
+      const res = await api.get("profile/");
+      setUser(res.data);
+    } catch {
+      // Keep cached user if API fails
+    }
+  }, [setUser]);
+
+  useEffect(() => {
+    fetchUser();
+    const handler = () => fetchUser();
+    window.addEventListener("auth-changed", handler);
+    return () => window.removeEventListener("auth-changed", handler);
+  }, [fetchUser]);
 
   const value = useMemo(
     () => ({
@@ -74,10 +85,11 @@ export function UserProvider({ children }) {
       setUser,
       updateUser,
       clearUser,
+      fetchUser,
       displayName: buildDisplayName(user),
       isAdmin: hasAdminAccess(user),
     }),
-    [user],
+    [user, setUser, updateUser, clearUser, fetchUser],
   );
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
@@ -85,8 +97,6 @@ export function UserProvider({ children }) {
 
 export function useUser() {
   const context = useContext(UserContext);
-  if (!context) {
-    throw new Error("useUser must be used within UserProvider");
-  }
+  if (!context) throw new Error("useUser must be used within UserProvider");
   return context;
 }
