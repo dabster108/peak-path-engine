@@ -113,7 +113,7 @@ export default function Navbar() {
   const navigate = useNavigate();
   const searchInputRef = useRef(null);
   const isHome = location.pathname === "/";
-  const { user, displayName, clearUser } = useUser();
+  const { user, displayName, clearUser, isAdmin } = useUser();
   const { items, itemCount, subtotal, removeItem, updateQuantity, clearCart } =
     useCart();
   const { placeOrder } = useOrders();
@@ -406,6 +406,36 @@ export default function Navbar() {
                     My Orders
                   </button>
 
+                  {isAdmin && (
+                    <button
+                      className="profile-dropdown__item profile-dropdown__item--admin"
+                      onClick={() => {
+                        setProfileOpen(false);
+                        navigate("/admin");
+                      }}
+                    >
+                      <svg
+                        width="15"
+                        height="15"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <rect x="3" y="3" width="7" height="7" rx="1" />
+                        <rect x="14" y="3" width="7" height="7" rx="1" />
+                        <rect x="3" y="14" width="7" height="7" rx="1" />
+                        <rect x="14" y="14" width="7" height="7" rx="1" />
+                      </svg>
+                      Admin
+                      <span className="profile-dropdown__admin-arrow">
+                        -&gt;
+                      </span>
+                    </button>
+                  )}
+
                   <div className="profile-dropdown__divider" />
 
                   <button
@@ -548,6 +578,16 @@ export default function Navbar() {
           ))}
         </ul>
         <div className="mobile-drawer__footer">
+          {isAdmin && (
+            <Link
+              to="/admin"
+              className="mobile-drawer__admin-link"
+              onClick={() => setMobileOpen(false)}
+            >
+              Admin Panel
+              <span aria-hidden="true">-&gt;</span>
+            </Link>
+          )}
           <p className="section-label">Conquer Every Summit</p>
         </div>
       </div>
