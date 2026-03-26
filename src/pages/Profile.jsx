@@ -60,13 +60,13 @@ export default function Profile() {
   const [errors, setErrors] = useState({});
   const [savedSection, setSavedSection] = useState("");
   const [passwordForm, setPasswordForm] = useState({
-    old_password:     "",
-    new_password:     "",
+    old_password: "",
+    new_password: "",
     confirm_password: "",
   });
-  const [passwordErrors, setPasswordErrors]   = useState({});
-  const [passwordSaving, setPasswordSaving]   = useState(false);
-  const [passwordSaved, setPasswordSaved]     = useState(false);
+  const [passwordErrors, setPasswordErrors] = useState({});
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordSaved, setPasswordSaved] = useState(false);
   const [passwordApiError, setPasswordApiError] = useState("");
 
   // Keep form in sync when user loads from API
@@ -117,14 +117,20 @@ export default function Profile() {
       }
     }
 
-  const validate = () => {
-    const next = {};
-    if (!form.fullName.trim())                              next.fullName = "Full name is required.";
-    if (!form.email.trim())                                 next.email    = "Email is required.";
-    else if (!emailPattern.test(form.email.trim()))         next.email    = "Enter a valid email address.";
-    if (form.phone && form.phone.replace(/\D/g, "").length < 7) next.phone = "Phone number looks too short.";
-    setErrors(next);
-    return Object.keys(next).length === 0;
+    if (section === "address") {
+      if (!form.addressLine.trim()) {
+        nextErrors.addressLine = "Address is required.";
+      }
+      if (!form.city.trim()) {
+        nextErrors.city = "City is required.";
+      }
+      if (!form.country.trim()) {
+        nextErrors.country = "Country is required.";
+      }
+    }
+
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
 
   const handleProfileSave = (event) => {
@@ -215,13 +221,18 @@ export default function Profile() {
     const next = {};
     const { old_password, new_password, confirm_password } = passwordForm;
 
-    if (!old_password)                                                next.old_password     = "Current password is required.";
-    if (!new_password)                                                next.new_password     = "New password is required.";
-    else if (new_password.length < 8)                                 next.new_password     = "Use at least 8 characters.";
-    else if (!/[A-Za-z]/.test(new_password) || !/\d/.test(new_password)) next.new_password = "Include at least one letter and one number.";
-    if (!confirm_password)                                            next.confirm_password = "Please confirm your new password.";
-    else if (new_password !== confirm_password)                       next.confirm_password = "Passwords do not match.";
-    if (old_password && new_password && old_password === new_password) next.new_password   = "New password must be different.";
+    if (!old_password) next.old_password = "Current password is required.";
+    if (!new_password) next.new_password = "New password is required.";
+    else if (new_password.length < 8)
+      next.new_password = "Use at least 8 characters.";
+    else if (!/[A-Za-z]/.test(new_password) || !/\d/.test(new_password))
+      next.new_password = "Include at least one letter and one number.";
+    if (!confirm_password)
+      next.confirm_password = "Please confirm your new password.";
+    else if (new_password !== confirm_password)
+      next.confirm_password = "Passwords do not match.";
+    if (old_password && new_password && old_password === new_password)
+      next.new_password = "New password must be different.";
 
     setPasswordErrors(next);
     return Object.keys(next).length === 0;
@@ -229,7 +240,8 @@ export default function Profile() {
 
   const onPasswordChange = (field) => (event) => {
     setPasswordForm((prev) => ({ ...prev, [field]: event.target.value }));
-    if (passwordErrors[field]) setPasswordErrors((prev) => ({ ...prev, [field]: undefined }));
+    if (passwordErrors[field])
+      setPasswordErrors((prev) => ({ ...prev, [field]: undefined }));
     if (passwordApiError) setPasswordApiError("");
   };
 
@@ -242,18 +254,25 @@ export default function Profile() {
     setPasswordSaving(true);
     try {
       await api.post("change-password/", {
-        old_password:     passwordForm.old_password,
-        new_password:     passwordForm.new_password,
+        old_password: passwordForm.old_password,
+        new_password: passwordForm.new_password,
         confirm_password: passwordForm.confirm_password,
       });
 
       setPasswordSaved(true);
-      setPasswordForm({ old_password: "", new_password: "", confirm_password: "" });
+      setPasswordForm({
+        old_password: "",
+        new_password: "",
+        confirm_password: "",
+      });
       setTimeout(() => setPasswordSaved(false), 1800);
     } catch (err) {
       const data = err?.response?.data;
       if (data?.old_password) {
-        setPasswordErrors((prev) => ({ ...prev, old_password: data.old_password[0] || "Incorrect password." }));
+        setPasswordErrors((prev) => ({
+          ...prev,
+          old_password: data.old_password[0] || "Incorrect password.",
+        }));
       } else if (data?.detail) {
         setPasswordApiError(data.detail);
       } else if (data && typeof data === "object") {
@@ -511,13 +530,13 @@ export default function Profile() {
                     Current Password
                     <input
                       type="password"
-                      value={passwordForm.currentPassword}
-                      onChange={onPasswordChange("currentPassword")}
+                      value={passwordForm.old_password}
+                      onChange={onPasswordChange("old_password")}
                       placeholder="Enter current password"
                       autoComplete="current-password"
                     />
-                    {passwordErrors.currentPassword && (
-                      <small>{passwordErrors.currentPassword}</small>
+                    {passwordErrors.old_password && (
+                      <small>{passwordErrors.old_password}</small>
                     )}
                   </label>
 
@@ -525,13 +544,13 @@ export default function Profile() {
                     New Password
                     <input
                       type="password"
-                      value={passwordForm.newPassword}
-                      onChange={onPasswordChange("newPassword")}
+                      value={passwordForm.new_password}
+                      onChange={onPasswordChange("new_password")}
                       placeholder="At least 8 characters"
                       autoComplete="new-password"
                     />
-                    {passwordErrors.newPassword && (
-                      <small>{passwordErrors.newPassword}</small>
+                    {passwordErrors.new_password && (
+                      <small>{passwordErrors.new_password}</small>
                     )}
                   </label>
 
@@ -539,13 +558,13 @@ export default function Profile() {
                     Confirm New Password
                     <input
                       type="password"
-                      value={passwordForm.confirmPassword}
-                      onChange={onPasswordChange("confirmPassword")}
+                      value={passwordForm.confirm_password}
+                      onChange={onPasswordChange("confirm_password")}
                       placeholder="Re-enter new password"
                       autoComplete="new-password"
                     />
-                    {passwordErrors.confirmPassword && (
-                      <small>{passwordErrors.confirmPassword}</small>
+                    {passwordErrors.confirm_password && (
+                      <small>{passwordErrors.confirm_password}</small>
                     )}
                   </label>
                 </div>
