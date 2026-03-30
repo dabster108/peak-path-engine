@@ -1,3 +1,4 @@
+// src\pages\Profile.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useUser } from "../context/UserContext";
 import { useScrollAnimations } from "../hooks/useScrollAnimations";
@@ -7,6 +8,7 @@ import "./Profile.css";
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const dataImagePattern = /^data:image\//i;
 const maxAvatarBytes = 2 * 1024 * 1024;
+
 const profileSections = [
   {
     key: "personal",
@@ -54,11 +56,15 @@ export default function Profile() {
   useScrollAnimations();
 
   const { user, displayName, updateUser, isAdmin } = useUser();
+
   const [form, setForm] = useState(() => getInitialForm(user, displayName));
   const avatarInputRef = useRef(null);
   const [activeSection, setActiveSection] = useState("personal");
   const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
   const [savedSection, setSavedSection] = useState("");
+  const [saveApiError, setSaveApiError] = useState("");
+
   const [passwordForm, setPasswordForm] = useState({
     old_password: "",
     new_password: "",
@@ -81,97 +87,130 @@ export default function Profile() {
 
   const selectedSection = useMemo(
     () =>
-      profileSections.find((section) => section.key === activeSection) ||
+      profileSections.find((s) => s.key === activeSection) ||
       profileSections[0],
     [activeSection],
   );
 
   const accountType = isAdmin ? "Admin" : "User";
 
+  // ── Validation ────────────────────────────────────────────
   const validate = (section) => {
-    const nextErrors = {};
+    const next = {};
 
     if (section === "personal") {
-      if (!form.fullName.trim()) {
-        nextErrors.fullName = "Full name is required.";
-      }
-
+      if (!form.fullName.trim()) next.fullName = "Full name is required.";
       if (
         form.avatarUrl &&
         !/^https?:\/\//i.test(form.avatarUrl.trim()) &&
         !dataImagePattern.test(form.avatarUrl.trim())
-      ) {
-        nextErrors.avatarUrl = "Use a valid image URL or upload an image file.";
-      }
+      )
+        next.avatarUrl = "Use a valid image URL or upload an image file.";
     }
 
     if (section === "contact") {
-      if (!form.email.trim()) {
-        nextErrors.email = "Email is required.";
-      } else if (!emailPattern.test(form.email.trim())) {
-        nextErrors.email = "Enter a valid email address.";
-      }
-
-      if (form.phone && form.phone.replace(/\D/g, "").length < 7) {
-        nextErrors.phone = "Phone number looks too short.";
-      }
+      if (!form.email.trim()) next.email = "Email is required.";
+      else if (!emailPattern.test(form.email.trim()))
+        next.email = "Enter a valid email address.";
+      if (form.phone && form.phone.replace(/\D/g, "").length < 7)
+        next.phone = "Phone number looks too short.";
     }
 
     if (section === "address") {
-      if (!form.addressLine.trim()) {
-        nextErrors.addressLine = "Address is required.";
-      }
-      if (!form.city.trim()) {
-        nextErrors.city = "City is required.";
-      }
-      if (!form.country.trim()) {
-        nextErrors.country = "Country is required.";
-      }
+      if (!form.addressLine.trim()) next.addressLine = "Address is required.";
+      if (!form.city.trim()) next.city = "City is required.";
+      if (!form.country.trim()) next.country = "Country is required.";
     }
 
-    setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
+    setErrors(next);
+    return Object.keys(next).length === 0;
   };
 
-  const handleProfileSave = (event) => {
+  // ── Profile save ──────────────────────────────────────────
+  const handleProfileSave = async (event) => {
     event.preventDefault();
     setSavedSection("");
-
+    setSaveApiError("");
     if (!validate(activeSection)) return;
 
     const [firstName = "", ...rest] = form.fullName.trim().split(" ");
     const lastName = rest.join(" ");
+    setSaving(true);
 
-    updateUser({
-      name: form.fullName.trim(),
-      username: form.fullName.trim(),
-      first_name: firstName,
-      last_name: lastName,
-      email: form.email.trim().toLowerCase(),
-      phone: form.phone.trim(),
-      avatar: form.avatarUrl.trim(),
-      profile_photo: form.avatarUrl.trim(),
-      location: form.location.trim(),
-      address_line: form.addressLine.trim(),
-      address: form.addressLine.trim(),
-      city: form.city.trim(),
-      state: form.state.trim(),
-      postal_code: form.postalCode.trim(),
-      country: form.country.trim(),
-      bio: form.bio.trim(),
-    });
+    try {
+      // Core user fields (name/email) → existing endpoint
+      if (activeSection === "personal") {
+        await api.patch("profile/", {
+          username: form.fullName.trim().replace(/\s+/g, "_").toLowerCase(),
+          first_name: firstName,
+          last_name: lastName,
+        });
 
-    setSavedSection(activeSection);
-    setTimeout(() => setSavedSection(""), 1800);
+        // Bio + avatar → extended profile endpoint
+        const fd = new FormData();
+        fd.append("bio", form.bio.trim());
+        if (form.avatarUrl?.startsWith("data:")) {
+          const blob = await (await fetch(form.avatarUrl)).blob();
+          fd.append("avatar", blob, "avatar.jpg");
+        } else if (!form.avatarUrl) {
+          fd.append("avatar", "");
+        }
+        const extRes = await api.patch("profile/extended/", fd, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        updateUser({
+          first_name: firstName,
+          last_name: lastName,
+          bio: extRes.data.bio,
+          avatar: extRes.data.avatar,
+        });
+      }
+
+      if (activeSection === "contact") {
+        await api.patch("profile/", { email: form.email.trim().toLowerCase() });
+        const extRes = await api.patch("profile/extended/", {
+          phone: form.phone.trim(),
+        });
+        updateUser({
+          email: form.email.trim().toLowerCase(),
+          phone: extRes.data.phone,
+        });
+      }
+
+      if (activeSection === "address") {
+        const extRes = await api.patch("profile/extended/", {
+          address_line: form.addressLine.trim(),
+          city: form.city.trim(),
+          state: form.state.trim(),
+          postal_code: form.postalCode.trim(),
+          country: form.country.trim(),
+          location: form.location.trim(),
+        });
+        updateUser({ ...extRes.data });
+      }
+
+      setSavedSection(activeSection);
+      setTimeout(() => setSavedSection(""), 1800);
+    } catch (err) {
+      const data = err?.response?.data;
+      if (data && typeof data === "object") {
+        const first = Object.values(data)[0];
+        setSaveApiError(Array.isArray(first) ? first[0] : String(first));
+      } else {
+        setSaveApiError("Failed to save. Please try again.");
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
   const onChange = (field) => (event) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }));
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }));
+    if (saveApiError) setSaveApiError("");
   };
 
-  // ── Password form ────────────────────────────────────────
-
+  // ── Avatar upload ─────────────────────────────────────────
   const handleAvatarUpload = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -184,7 +223,6 @@ export default function Profile() {
       event.target.value = "";
       return;
     }
-
     if (file.size > maxAvatarBytes) {
       setErrors((prev) => ({
         ...prev,
@@ -200,14 +238,12 @@ export default function Profile() {
       setForm((prev) => ({ ...prev, avatarUrl: fileData }));
       setErrors((prev) => ({ ...prev, avatarUrl: undefined }));
     };
-
     reader.onerror = () => {
       setErrors((prev) => ({
         ...prev,
-        avatarUrl: "We could not read this image. Try another file.",
+        avatarUrl: "Could not read this image. Try another file.",
       }));
     };
-
     reader.readAsDataURL(file);
     event.target.value = "";
   };
@@ -217,6 +253,7 @@ export default function Profile() {
     setErrors((prev) => ({ ...prev, avatarUrl: undefined }));
   };
 
+  // ── Password form ─────────────────────────────────────────
   const validatePasswordForm = () => {
     const next = {};
     const { old_password, new_password, confirm_password } = passwordForm;
@@ -258,7 +295,6 @@ export default function Profile() {
         new_password: passwordForm.new_password,
         confirm_password: passwordForm.confirm_password,
       });
-
       setPasswordSaved(true);
       setPasswordForm({
         old_password: "",
@@ -332,12 +368,11 @@ export default function Profile() {
               <button
                 key={section.key}
                 type="button"
-                className={`profile-nav__item ${
-                  activeSection === section.key ? "is-active" : ""
-                }`}
+                className={`profile-nav__item ${activeSection === section.key ? "is-active" : ""}`}
                 onClick={() => {
                   setActiveSection(section.key);
                   setErrors({});
+                  setSaveApiError("");
                 }}
               >
                 {section.label}
@@ -353,6 +388,7 @@ export default function Profile() {
               <span>{selectedSection.description}</span>
             </div>
 
+            {/* ── Personal / Contact / Address ── */}
             {activeSection !== "security" && (
               <form onSubmit={handleProfileSave} noValidate>
                 {activeSection === "personal" && (
@@ -452,6 +488,9 @@ export default function Profile() {
                         onChange={onChange("addressLine")}
                         placeholder="Street, house number"
                       />
+                      {errors.addressLine && (
+                        <small>{errors.addressLine}</small>
+                      )}
                     </label>
 
                     <label>
@@ -462,6 +501,7 @@ export default function Profile() {
                         onChange={onChange("city")}
                         placeholder="Kathmandu"
                       />
+                      {errors.city && <small>{errors.city}</small>}
                     </label>
 
                     <label>
@@ -492,6 +532,7 @@ export default function Profile() {
                         onChange={onChange("country")}
                         placeholder="Nepal"
                       />
+                      {errors.country && <small>{errors.country}</small>}
                     </label>
 
                     <label className="profile-form-grid__full">
@@ -512,13 +553,21 @@ export default function Profile() {
                       {selectedSection.title} updated.
                     </p>
                   )}
-                  <button type="submit" className="btn btn-primary">
-                    Save {selectedSection.label}
+                  {saveApiError && (
+                    <p className="profile-error">{saveApiError}</p>
+                  )}
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={saving}
+                  >
+                    {saving ? "Saving…" : `Save ${selectedSection.label}`}
                   </button>
                 </div>
               </form>
             )}
 
+            {/* ── Security ── */}
             {activeSection === "security" && (
               <form
                 className="profile-password-card"
@@ -575,8 +624,15 @@ export default function Profile() {
                       Password changed successfully.
                     </p>
                   )}
-                  <button type="submit" className="btn btn-primary">
-                    Update Password
+                  {passwordApiError && (
+                    <p className="profile-error">{passwordApiError}</p>
+                  )}
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={passwordSaving}
+                  >
+                    {passwordSaving ? "Updating…" : "Update Password"}
                   </button>
                 </div>
               </form>

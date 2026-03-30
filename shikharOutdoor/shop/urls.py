@@ -7,6 +7,7 @@ urlpatterns = [
     path("login/",           views.LoginView.as_view()),
     path("google-login/",    views.GoogleLoginView.as_view()),
     path("profile/",         views.ProfileView.as_view()),
+    path("profile/extended/", views.UserProfileView.as_view()),
     path("change-password/", views.ChangePasswordView.as_view()),
     path("users/",           views.UserListView.as_view()),
 
@@ -15,6 +16,7 @@ urlpatterns = [
     path("add-product/",       views.AddProductView.as_view()),
     path("products/<int:pk>/", views.ProductDetailView.as_view()),
     path("products/<int:pk>/images/", views.ProductImageUploadView.as_view()),
+    path("products/<int:pk>/reviews/", views.ReviewListCreateView.as_view()),
 
     # Dropdowns
     path("categories/", views.CategoryListView.as_view()),
@@ -30,4 +32,13 @@ urlpatterns = [
     path("orders/",                views.OrderListCreateView.as_view()),
     path("admin/orders/",          views.AdminOrderListView.as_view()),
     path("admin/orders/<int:pk>/", views.AdminOrderUpdateView.as_view()),
+
+    # Blogs
+    path("blog/",          views.BlogPostListCreateView.as_view()),
+    path("blog/<int:pk>/", views.BlogPostDeleteView.as_view()),
+
+
+    # About
+    path("about/reviews/", views.AboutReviewListCreateView.as_view()),
+
 ]

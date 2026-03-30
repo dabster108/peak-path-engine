@@ -1,6 +1,6 @@
 # shikharOutdoor\shop\serializers.py
 from rest_framework import serializers
-from .models import Cart, CartItem, CustomUser, Order, OrderItem, Product, ProductImage, Section, Badge, Category
+from .models import AboutReview, BlogPost, Cart, CartItem, CustomUser, Order, OrderItem, Product, ProductImage, Review, Section, Badge, Category, UserProfile
 import re
 from django.contrib.auth.password_validation import validate_password
 
@@ -20,6 +20,25 @@ class UserSerializer(serializers.ModelSerializer):
             "is_superuser",
         )
 
+class UserProfileSerializer(serializers.ModelSerializer):
+    avatar = serializers.ImageField(required=False, allow_null=True)
+
+    class Meta:
+        model  = UserProfile
+        fields = (
+            "phone", "bio", "avatar",
+            "address_line", "city", "state",
+            "postal_code", "country", "location",
+        )
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        request = self.context.get("request")
+        if instance.avatar and request:
+            rep["avatar"] = request.build_absolute_uri(instance.avatar.url)
+        else:
+            rep["avatar"] = instance.avatar.url if instance.avatar else None
+        return rep
 
 class ProfileSettingsSerializer(serializers.ModelSerializer):
     class Meta:
@@ -137,11 +156,12 @@ class ProductSerializer(serializers.ModelSerializer):
     category = serializers.CharField(source='category.name', allow_null=True, required=False)
     section  = serializers.CharField(source='section.name')
     badge    = serializers.CharField(source='badge.name', allow_null=True, required=False)
-    images   = ProductImageSerializer(many=True, read_only=True)  # ← add this
+    images   = ProductImageSerializer(many=True, read_only=True)  
+    description = serializers.CharField(allow_blank=True, required=False)
 
     class Meta:
         model = Product
-        fields = ("id", "name", "category", "section", "badge", "price", "stock", "images")
+        fields = ("id", "name", "category", "section", "badge", "price", "stock", "images", "description")
 
     def _get_or_create_related(self, model, name):
         if not name:
@@ -174,6 +194,17 @@ class ProductSerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         instance.save()
         return instance
+    
+
+class ReviewSerializer(serializers.ModelSerializer):
+    date = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = Review
+        fields = ('id', 'author', 'rating', 'text', 'date')
+
+    def get_date(self, obj):
+        return obj.created_at.strftime('%b %Y')
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -292,3 +323,60 @@ class OrderSerializer(serializers.ModelSerializer):
             return self.ORDER_STAGES.index(obj.status)
         except ValueError:
             return 0
+        
+
+class BlogPostSerializer(serializers.ModelSerializer):
+    created_at = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = BlogPost
+        fields = ('id', 'title', 'category', 'author', 'excerpt', 'content', 'source', 'created_at')
+        read_only_fields = ('id', 'source', 'created_at')
+
+    def get_created_at(self, obj):
+        return obj.created_at.isoformat()
+
+    def validate_title(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Title is required.")
+        return value.strip()
+
+    def validate_excerpt(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Summary is required.")
+        return value.strip()
+
+    def validate_content(self, value):
+        if len(value.strip()) < 120:
+            raise serializers.ValidationError("Content must be at least 120 characters.")
+        return value.strip()
+
+
+class AboutReviewSerializer(serializers.ModelSerializer):
+    date = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = AboutReview
+        fields = ('id', 'name', 'location', 'product', 'rating', 'text', 'date')
+        read_only_fields = ('id', 'date')
+
+    def get_date(self, obj):
+        return obj.created_at.strftime('%b %Y')
+
+    def validate_rating(self, value):
+        if not 1 <= value <= 5:
+            raise serializers.ValidationError("Rating must be between 1 and 5.")
+        return value
+
+    def validate_text(self, value):
+        if len(value.strip()) < 20:
+            raise serializers.ValidationError("Review must be at least 20 characters.")
+        return value.strip()
+
+    def validate_product(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Please select a product.")
+        return value.strip()
+
+
+

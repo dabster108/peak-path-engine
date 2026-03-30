@@ -1,3 +1,4 @@
+#shikharOutdoor\shop\models.py
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
@@ -15,6 +16,20 @@ class Category(models.Model):
     def __str__(self):
         return self.name
 
+class UserProfile(models.Model):
+    user         = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='profile')
+    phone        = models.CharField(max_length=30,  blank=True, default="")
+    bio          = models.TextField(blank=True,      default="")
+    avatar       = models.ImageField(upload_to='avatars/', null=True, blank=True)
+    address_line = models.CharField(max_length=255, blank=True, default="")
+    city         = models.CharField(max_length=100, blank=True, default="")
+    state        = models.CharField(max_length=100, blank=True, default="")
+    postal_code  = models.CharField(max_length=20,  blank=True, default="")
+    country      = models.CharField(max_length=100, blank=True, default="")
+    location     = models.CharField(max_length=200, blank=True, default="")
+
+    def __str__(self):
+        return f"Profile of {self.user.username}"
 
 class Section(models.Model):
     name = models.CharField(max_length=255)
@@ -42,6 +57,8 @@ class Product(models.Model):
     def __str__(self):
         return self.name
 
+
+
 class ProductImage(models.Model):
     product = models.ForeignKey(
         'Product',
@@ -57,7 +74,23 @@ class ProductImage(models.Model):
 
     def __str__(self):
         return f"Image for {self.product.name}"
-    
+
+
+class Review(models.Model):
+    product    = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')
+    user       = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='reviews')
+    author     = models.CharField(max_length=100)
+    rating     = models.PositiveSmallIntegerField()
+    text       = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = ('product', 'user')
+
+    def __str__(self):
+        return f"{self.author} on {self.product.name}"
+
 class Cart(models.Model):
     user = models.OneToOneField(
         CustomUser, on_delete=models.CASCADE, related_name='cart'
@@ -113,3 +146,45 @@ class OrderItem(models.Model):
 
     def __str__(self):
         return f"{self.quantity}x {self.name}"
+
+
+class BlogPost(models.Model):
+    CATEGORY_CHOICES = [
+        ('Trail Notes',     'Trail Notes'),
+        ('Gear Guide',      'Gear Guide'),
+        ('Adventure Story', 'Adventure Story'),
+        ('Pack Science',    'Pack Science'),
+        ('How-To',          'How-To'),
+    ]
+
+    user      = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='blog_posts')
+    title     = models.CharField(max_length=255)
+    category  = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='Trail Notes')
+    author    = models.CharField(max_length=100)
+    excerpt   = models.TextField()
+    content   = models.TextField()
+    source    = models.CharField(max_length=20, default='user')  # 'user' | 'featured'
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.title
+
+
+class AboutReview(models.Model):
+    user     = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='about_reviews')
+    name     = models.CharField(max_length=100)
+    location = models.CharField(max_length=100, blank=True, default="")
+    product  = models.CharField(max_length=100)
+    rating   = models.PositiveSmallIntegerField()
+    text     = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = ('user', 'product')
+
+    def __str__(self):
+        return f"{self.name} — {self.product}"
