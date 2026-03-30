@@ -15,9 +15,11 @@ from google.auth.transport import requests
 
 from django.conf import settings
 
-from .models import Cart, CartItem, CustomUser, Order, OrderItem, Product, ProductImage, Section, Badge, Category
+from .models import AboutReview, BlogPost, Cart, CartItem, CustomUser, Order, OrderItem, Product, ProductImage, Review, Section, Badge, Category, UserProfile
 from .serializers import (
+    AboutReviewSerializer,
     BadgeSerializer,
+    BlogPostSerializer,
     CartSerializer,
     CategorySerializer,
     OrderSerializer,
@@ -26,8 +28,10 @@ from .serializers import (
     ProfileUpdateSerializer,
     RegisterSerializer,
     LoginSerializer,
+    ReviewSerializer,
     SectionSerializer,
     UserListSerializer,
+    UserProfileSerializer,
     UserSerializer,
     ProfileSettingsSerializer,
     ChangePasswordSerializer,
@@ -127,6 +131,30 @@ class ProfileView(generics.RetrieveUpdateAPIView):
             return ProfileUpdateSerializer
         return UserSerializer
 
+class UserProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes     = [MultiPartParser, FormParser, JSONParser]
+
+    def _get_profile(self, user):
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        return profile
+
+    def get(self, request):
+        profile = self._get_profile(request.user)
+        serializer = UserProfileSerializer(profile, context={"request": request})
+        return Response(serializer.data)
+
+    def patch(self, request):
+        profile = self._get_profile(request.user)
+        serializer = UserProfileSerializer(
+            profile, data=request.data,
+            partial=True, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+
 class ChangePasswordView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -179,6 +207,32 @@ class AddProductView(APIView):
             )
         result = ProductSerializer(product, context={"request": request})
         return Response(result.data, status=201)
+
+class ReviewListCreateView(APIView):
+    def get_permissions(self):
+        return [AllowAny()] if self.request.method == 'GET' else [IsAuthenticated()]
+
+    def get(self, request, pk):
+        try:
+            product = Product.objects.get(pk=pk)
+        except Product.DoesNotExist:
+            return Response({'error': 'Product not found.'}, status=404)
+        reviews = product.reviews.all()
+        return Response(ReviewSerializer(reviews, many=True).data)
+
+    def post(self, request, pk):
+        try:
+            product = Product.objects.get(pk=pk)
+        except Product.DoesNotExist:
+            return Response({'error': 'Product not found.'}, status=404)
+
+        if Review.objects.filter(product=product, user=request.user).exists():
+            return Response({'error': 'You have already reviewed this product.'}, status=400)
+
+        serializer = ReviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(product=product, user=request.user)
+        return Response(serializer.data, status=201)
 
 
 class ProductListView(generics.ListAPIView):
@@ -405,7 +459,54 @@ class AdminOrderUpdateView(APIView):
         return Response(OrderSerializer(order).data)
 
 
+class BlogPostListCreateView(APIView):
+    def get_permissions(self):
+        return [AllowAny()] if self.request.method == 'GET' else [IsAuthenticated()]
+
+    def get(self, request):
+        posts = BlogPost.objects.all()
+        serializer = BlogPostSerializer(posts, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = BlogPostSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(user=request.user, source='user')
+        return Response(serializer.data, status=201)
 
 
+class BlogPostDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        try:
+            post = BlogPost.objects.get(pk=pk)
+        except BlogPost.DoesNotExist:
+            return Response({'error': 'Post not found.'}, status=404)
+
+        if post.user != request.user and not (request.user.is_staff or request.user.role == 'admin'):
+            return Response({'error': 'Forbidden.'}, status=403)
+
+        post.delete()
+        return Response({'detail': 'Post deleted.'})
+
+class AboutReviewListCreateView(APIView):
+    def get_permissions(self):
+        return [AllowAny()] if self.request.method == 'GET' else [IsAuthenticated()]
+
+    def get(self, request):
+        reviews = AboutReview.objects.all()
+        return Response(AboutReviewSerializer(reviews, many=True).data)
+
+    def post(self, request):
+        if AboutReview.objects.filter(user=request.user, product=request.data.get('product')).exists():
+            return Response(
+                {'error': 'You have already reviewed this product.'},
+                status=400
+            )
+        serializer = AboutReviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(user=request.user)
+        return Response(serializer.data, status=201)
 
 

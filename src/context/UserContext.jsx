@@ -1,5 +1,12 @@
 // src\context\UserContext.jsx
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import api from "../utils/api";
 import { isAuthenticated } from "../App";
 
@@ -24,9 +31,18 @@ function persistUser(user) {
 
 function buildDisplayName(user) {
   if (!user) return "";
-  const fromName = [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
+  const fromName = [user.first_name, user.last_name]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
   if (fromName) return fromName;
-  return user.full_name || user.name || user.username || (user.email ? user.email.split("@")[0] : "") || "";
+  return (
+    user.full_name ||
+    user.name ||
+    user.username ||
+    (user.email ? user.email.split("@")[0] : "") ||
+    ""
+  );
 }
 
 function hasAdminAccess(user) {
@@ -65,8 +81,11 @@ export function UserProvider({ children }) {
   const fetchUser = useCallback(async () => {
     if (!isAuthenticated()) return;
     try {
-      const res = await api.get("profile/");
-      setUser(res.data);
+      const [coreRes, extRes] = await Promise.all([
+        api.get("profile/"),
+        api.get("profile/extended/"),
+      ]);
+      setUser({ ...coreRes.data, ...extRes.data });
     } catch {
       // Keep cached user if API fails
     }

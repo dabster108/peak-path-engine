@@ -5,30 +5,50 @@ import { useScrollAnimations } from "../hooks/useScrollAnimations";
 import api from "../utils/api";
 import "./Profile.css";
 
-const emailPattern     = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const dataImagePattern = /^data:image\//i;
-const maxAvatarBytes   = 2 * 1024 * 1024;
+const maxAvatarBytes = 2 * 1024 * 1024;
 
 const profileSections = [
-  { key: "personal", label: "Personal Details",  title: "Personal Details",      description: "Update your basic profile details." },
-  { key: "contact",  label: "Contact",           title: "Contact Information",   description: "Manage your email and phone number." },
-  { key: "address",  label: "Address",           title: "Address Details",       description: "Keep your delivery address accurate." },
-  { key: "security", label: "Change Password",   title: "Change Password",       description: "Set a stronger password for account safety." },
+  {
+    key: "personal",
+    label: "Personal Details",
+    title: "Personal Details",
+    description: "Update your basic profile details.",
+  },
+  {
+    key: "contact",
+    label: "Contact",
+    title: "Contact Information",
+    description: "Manage your email and phone number.",
+  },
+  {
+    key: "address",
+    label: "Address",
+    title: "Address Details",
+    description: "Keep your delivery address accurate.",
+  },
+  {
+    key: "security",
+    label: "Change Password",
+    title: "Change Password",
+    description: "Set a stronger password for account safety.",
+  },
 ];
 
 function getInitialForm(user, displayName) {
   return {
-    fullName:    displayName             || "",
-    email:       user?.email             || "",
-    phone:       user?.phone             || "",
-    avatarUrl:   user?.avatar            || user?.profile_photo || "",
-    bio:         user?.bio               || "",
-    addressLine: user?.address_line      || user?.address       || "",
-    city:        user?.city              || "",
-    state:       user?.state             || "",
-    postalCode:  user?.postal_code       || "",
-    country:     user?.country           || "",
-    location:    user?.location          || "",
+    fullName: displayName || "",
+    email: user?.email || "",
+    phone: user?.phone || "",
+    avatarUrl: user?.avatar || user?.profile_photo || "",
+    bio: user?.bio || "",
+    addressLine: user?.address_line || user?.address || "",
+    city: user?.city || "",
+    state: user?.state || "",
+    postalCode: user?.postal_code || "",
+    country: user?.country || "",
+    location: user?.location || "",
   };
 }
 
@@ -37,18 +57,22 @@ export default function Profile() {
 
   const { user, displayName, updateUser, isAdmin } = useUser();
 
-  const [form, setForm]               = useState(() => getInitialForm(user, displayName));
-  const avatarInputRef                = useRef(null);
+  const [form, setForm] = useState(() => getInitialForm(user, displayName));
+  const avatarInputRef = useRef(null);
   const [activeSection, setActiveSection] = useState("personal");
-  const [errors, setErrors]           = useState({});
-  const [saving, setSaving]           = useState(false);
-  const [savedSection, setSavedSection]   = useState("");
-  const [saveApiError, setSaveApiError]   = useState("");
+  const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [savedSection, setSavedSection] = useState("");
+  const [saveApiError, setSaveApiError] = useState("");
 
-  const [passwordForm, setPasswordForm]         = useState({ old_password: "", new_password: "", confirm_password: "" });
-  const [passwordErrors, setPasswordErrors]     = useState({});
-  const [passwordSaving, setPasswordSaving]     = useState(false);
-  const [passwordSaved, setPasswordSaved]       = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    old_password: "",
+    new_password: "",
+    confirm_password: "",
+  });
+  const [passwordErrors, setPasswordErrors] = useState({});
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordSaved, setPasswordSaved] = useState(false);
   const [passwordApiError, setPasswordApiError] = useState("");
 
   // Keep form in sync when user loads from API
@@ -62,7 +86,9 @@ export default function Profile() {
   );
 
   const selectedSection = useMemo(
-    () => profileSections.find((s) => s.key === activeSection) || profileSections[0],
+    () =>
+      profileSections.find((s) => s.key === activeSection) ||
+      profileSections[0],
     [activeSection],
   );
 
@@ -78,19 +104,22 @@ export default function Profile() {
         form.avatarUrl &&
         !/^https?:\/\//i.test(form.avatarUrl.trim()) &&
         !dataImagePattern.test(form.avatarUrl.trim())
-      ) next.avatarUrl = "Use a valid image URL or upload an image file.";
+      )
+        next.avatarUrl = "Use a valid image URL or upload an image file.";
     }
 
     if (section === "contact") {
-      if (!form.email.trim())                                next.email = "Email is required.";
-      else if (!emailPattern.test(form.email.trim()))        next.email = "Enter a valid email address.";
-      if (form.phone && form.phone.replace(/\D/g, "").length < 7) next.phone = "Phone number looks too short.";
+      if (!form.email.trim()) next.email = "Email is required.";
+      else if (!emailPattern.test(form.email.trim()))
+        next.email = "Enter a valid email address.";
+      if (form.phone && form.phone.replace(/\D/g, "").length < 7)
+        next.phone = "Phone number looks too short.";
     }
 
     if (section === "address") {
       if (!form.addressLine.trim()) next.addressLine = "Address is required.";
-      if (!form.city.trim())        next.city         = "City is required.";
-      if (!form.country.trim())     next.country      = "Country is required.";
+      if (!form.city.trim()) next.city = "City is required.";
+      if (!form.country.trim()) next.country = "Country is required.";
     }
 
     setErrors(next);
@@ -106,52 +135,58 @@ export default function Profile() {
 
     const [firstName = "", ...rest] = form.fullName.trim().split(" ");
     const lastName = rest.join(" ");
-
     setSaving(true);
+
     try {
-      // Fields that exist on CustomUser — send to API
-      if (activeSection === "personal" || activeSection === "contact") {
-        const payload = {};
+      // Core user fields (name/email) → existing endpoint
+      if (activeSection === "personal") {
+        await api.patch("profile/", {
+          username: form.fullName.trim().replace(/\s+/g, "_").toLowerCase(),
+          first_name: firstName,
+          last_name: lastName,
+        });
 
-        if (activeSection === "personal") {
-          payload.username   = form.fullName.trim().replace(/\s+/g, "_").toLowerCase();
-          payload.first_name = firstName;
-          payload.last_name  = lastName;
+        // Bio + avatar → extended profile endpoint
+        const fd = new FormData();
+        fd.append("bio", form.bio.trim());
+        if (form.avatarUrl?.startsWith("data:")) {
+          const blob = await (await fetch(form.avatarUrl)).blob();
+          fd.append("avatar", blob, "avatar.jpg");
+        } else if (!form.avatarUrl) {
+          fd.append("avatar", "");
         }
-
-        if (activeSection === "contact") {
-          payload.email = form.email.trim().toLowerCase();
-        }
-
-        const res = await api.patch("profile/", payload);
-
-        // Merge API response back into context, keep local-only fields from form
+        const extRes = await api.patch("profile/extended/", fd, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
         updateUser({
-          ...res.data,
-          phone:       form.phone.trim(),
-          avatar:      form.avatarUrl.trim(),
-          bio:         form.bio.trim(),
+          first_name: firstName,
+          last_name: lastName,
+          bio: extRes.data.bio,
+          avatar: extRes.data.avatar,
+        });
+      }
+
+      if (activeSection === "contact") {
+        await api.patch("profile/", { email: form.email.trim().toLowerCase() });
+        const extRes = await api.patch("profile/extended/", {
+          phone: form.phone.trim(),
+        });
+        updateUser({
+          email: form.email.trim().toLowerCase(),
+          phone: extRes.data.phone,
+        });
+      }
+
+      if (activeSection === "address") {
+        const extRes = await api.patch("profile/extended/", {
           address_line: form.addressLine.trim(),
-          city:        form.city.trim(),
-          state:       form.state.trim(),
+          city: form.city.trim(),
+          state: form.state.trim(),
           postal_code: form.postalCode.trim(),
-          country:     form.country.trim(),
-          location:    form.location.trim(),
+          country: form.country.trim(),
+          location: form.location.trim(),
         });
-      } else {
-        // Address section — no DB fields yet, save locally only
-        updateUser({
-          phone:        form.phone.trim(),
-          avatar:       form.avatarUrl.trim(),
-          bio:          form.bio.trim(),
-          address_line: form.addressLine.trim(),
-          address:      form.addressLine.trim(),
-          city:         form.city.trim(),
-          state:        form.state.trim(),
-          postal_code:  form.postalCode.trim(),
-          country:      form.country.trim(),
-          location:     form.location.trim(),
-        });
+        updateUser({ ...extRes.data });
       }
 
       setSavedSection(activeSection);
@@ -181,12 +216,18 @@ export default function Profile() {
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      setErrors((prev) => ({ ...prev, avatarUrl: "Please select a valid image file." }));
+      setErrors((prev) => ({
+        ...prev,
+        avatarUrl: "Please select a valid image file.",
+      }));
       event.target.value = "";
       return;
     }
     if (file.size > maxAvatarBytes) {
-      setErrors((prev) => ({ ...prev, avatarUrl: "Image must be 2MB or smaller." }));
+      setErrors((prev) => ({
+        ...prev,
+        avatarUrl: "Image must be 2MB or smaller.",
+      }));
       event.target.value = "";
       return;
     }
@@ -198,7 +239,10 @@ export default function Profile() {
       setErrors((prev) => ({ ...prev, avatarUrl: undefined }));
     };
     reader.onerror = () => {
-      setErrors((prev) => ({ ...prev, avatarUrl: "Could not read this image. Try another file." }));
+      setErrors((prev) => ({
+        ...prev,
+        avatarUrl: "Could not read this image. Try another file.",
+      }));
     };
     reader.readAsDataURL(file);
     event.target.value = "";
@@ -214,13 +258,18 @@ export default function Profile() {
     const next = {};
     const { old_password, new_password, confirm_password } = passwordForm;
 
-    if (!old_password)                                                     next.old_password     = "Current password is required.";
-    if (!new_password)                                                     next.new_password     = "New password is required.";
-    else if (new_password.length < 8)                                      next.new_password     = "Use at least 8 characters.";
-    else if (!/[A-Za-z]/.test(new_password) || !/\d/.test(new_password))  next.new_password     = "Include at least one letter and one number.";
-    if (!confirm_password)                                                 next.confirm_password = "Please confirm your new password.";
-    else if (new_password !== confirm_password)                            next.confirm_password = "Passwords do not match.";
-    if (old_password && new_password && old_password === new_password)     next.new_password     = "New password must be different.";
+    if (!old_password) next.old_password = "Current password is required.";
+    if (!new_password) next.new_password = "New password is required.";
+    else if (new_password.length < 8)
+      next.new_password = "Use at least 8 characters.";
+    else if (!/[A-Za-z]/.test(new_password) || !/\d/.test(new_password))
+      next.new_password = "Include at least one letter and one number.";
+    if (!confirm_password)
+      next.confirm_password = "Please confirm your new password.";
+    else if (new_password !== confirm_password)
+      next.confirm_password = "Passwords do not match.";
+    if (old_password && new_password && old_password === new_password)
+      next.new_password = "New password must be different.";
 
     setPasswordErrors(next);
     return Object.keys(next).length === 0;
@@ -228,7 +277,8 @@ export default function Profile() {
 
   const onPasswordChange = (field) => (event) => {
     setPasswordForm((prev) => ({ ...prev, [field]: event.target.value }));
-    if (passwordErrors[field]) setPasswordErrors((prev) => ({ ...prev, [field]: undefined }));
+    if (passwordErrors[field])
+      setPasswordErrors((prev) => ({ ...prev, [field]: undefined }));
     if (passwordApiError) setPasswordApiError("");
   };
 
@@ -241,17 +291,24 @@ export default function Profile() {
     setPasswordSaving(true);
     try {
       await api.post("change-password/", {
-        old_password:     passwordForm.old_password,
-        new_password:     passwordForm.new_password,
+        old_password: passwordForm.old_password,
+        new_password: passwordForm.new_password,
         confirm_password: passwordForm.confirm_password,
       });
       setPasswordSaved(true);
-      setPasswordForm({ old_password: "", new_password: "", confirm_password: "" });
+      setPasswordForm({
+        old_password: "",
+        new_password: "",
+        confirm_password: "",
+      });
       setTimeout(() => setPasswordSaved(false), 1800);
     } catch (err) {
       const data = err?.response?.data;
       if (data?.old_password) {
-        setPasswordErrors((prev) => ({ ...prev, old_password: data.old_password[0] || "Incorrect password." }));
+        setPasswordErrors((prev) => ({
+          ...prev,
+          old_password: data.old_password[0] || "Incorrect password.",
+        }));
       } else if (data?.detail) {
         setPasswordApiError(data.detail);
       } else if (data && typeof data === "object") {
@@ -271,14 +328,20 @@ export default function Profile() {
         <div className="container profile-hero__inner">
           <span className="section-label">Account</span>
           <h1>My Profile</h1>
-          <p>Manage your personal details, contact information, address, and security settings from one place.</p>
+          <p>
+            Manage your personal details, contact information, address, and
+            security settings from one place.
+          </p>
         </div>
       </section>
 
       <section className="profile-shell container">
         <aside className="profile-sidebar reveal">
           <div className="profile-identity-card">
-            <div className="profile-identity-avatar" aria-hidden={Boolean(form.avatarUrl)}>
+            <div
+              className="profile-identity-avatar"
+              aria-hidden={Boolean(form.avatarUrl)}
+            >
               {form.avatarUrl ? (
                 <img src={form.avatarUrl} alt="Profile" />
               ) : (
@@ -289,8 +352,14 @@ export default function Profile() {
             <p>{form.email || "no-email@shikhar.local"}</p>
             <strong className="profile-role-chip">{accountType}</strong>
             <dl>
-              <div><dt>Phone</dt><dd>{form.phone || "Not set"}</dd></div>
-              <div><dt>Address</dt><dd>{form.location || form.city || "Not set"}</dd></div>
+              <div>
+                <dt>Phone</dt>
+                <dd>{form.phone || "Not set"}</dd>
+              </div>
+              <div>
+                <dt>Address</dt>
+                <dd>{form.location || form.city || "Not set"}</dd>
+              </div>
             </dl>
           </div>
 
@@ -300,7 +369,11 @@ export default function Profile() {
                 key={section.key}
                 type="button"
                 className={`profile-nav__item ${activeSection === section.key ? "is-active" : ""}`}
-                onClick={() => { setActiveSection(section.key); setErrors({}); setSaveApiError(""); }}
+                onClick={() => {
+                  setActiveSection(section.key);
+                  setErrors({});
+                  setSaveApiError("");
+                }}
               >
                 {section.label}
               </button>
@@ -318,23 +391,50 @@ export default function Profile() {
             {/* ── Personal / Contact / Address ── */}
             {activeSection !== "security" && (
               <form onSubmit={handleProfileSave} noValidate>
-
                 {activeSection === "personal" && (
                   <div className="profile-form-grid">
                     <label>
                       Full Name
-                      <input type="text" value={form.fullName} onChange={onChange("fullName")} placeholder="Your full name" />
+                      <input
+                        type="text"
+                        value={form.fullName}
+                        onChange={onChange("fullName")}
+                        placeholder="Your full name"
+                      />
                       {errors.fullName && <small>{errors.fullName}</small>}
                     </label>
 
                     <label>
                       Profile Photo URL (optional)
                       <div className="profile-avatar-input-row">
-                        <input type="url" value={form.avatarUrl} onChange={onChange("avatarUrl")} placeholder="https://example.com/photo.jpg" />
-                        <input ref={avatarInputRef} type="file" accept="image/*" className="profile-avatar-file-input" onChange={handleAvatarUpload} />
-                        <button type="button" className="btn profile-upload-btn" onClick={() => avatarInputRef.current?.click()}>Upload</button>
+                        <input
+                          type="url"
+                          value={form.avatarUrl}
+                          onChange={onChange("avatarUrl")}
+                          placeholder="https://example.com/photo.jpg"
+                        />
+                        <input
+                          ref={avatarInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="profile-avatar-file-input"
+                          onChange={handleAvatarUpload}
+                        />
+                        <button
+                          type="button"
+                          className="btn profile-upload-btn"
+                          onClick={() => avatarInputRef.current?.click()}
+                        >
+                          Upload
+                        </button>
                         {form.avatarUrl && (
-                          <button type="button" className="btn profile-upload-btn profile-upload-btn--ghost" onClick={clearAvatar}>Remove</button>
+                          <button
+                            type="button"
+                            className="btn profile-upload-btn profile-upload-btn--ghost"
+                            onClick={clearAvatar}
+                          >
+                            Remove
+                          </button>
                         )}
                       </div>
                       {errors.avatarUrl && <small>{errors.avatarUrl}</small>}
@@ -342,7 +442,12 @@ export default function Profile() {
 
                     <label className="profile-form-grid__full">
                       Bio
-                      <textarea rows="4" value={form.bio} onChange={onChange("bio")} placeholder="Tell us about your favorite adventure style..." />
+                      <textarea
+                        rows="4"
+                        value={form.bio}
+                        onChange={onChange("bio")}
+                        placeholder="Tell us about your favorite adventure style..."
+                      />
                     </label>
                   </div>
                 )}
@@ -351,13 +456,23 @@ export default function Profile() {
                   <div className="profile-form-grid">
                     <label>
                       Email
-                      <input type="email" value={form.email} onChange={onChange("email")} placeholder="you@example.com" />
+                      <input
+                        type="email"
+                        value={form.email}
+                        onChange={onChange("email")}
+                        placeholder="you@example.com"
+                      />
                       {errors.email && <small>{errors.email}</small>}
                     </label>
 
                     <label>
                       Phone
-                      <input type="tel" value={form.phone} onChange={onChange("phone")} placeholder="+977 98XXXXXXXX" />
+                      <input
+                        type="tel"
+                        value={form.phone}
+                        onChange={onChange("phone")}
+                        placeholder="+977 98XXXXXXXX"
+                      />
                       {errors.phone && <small>{errors.phone}</small>}
                     </label>
                   </div>
@@ -367,45 +482,85 @@ export default function Profile() {
                   <div className="profile-form-grid">
                     <label className="profile-form-grid__full">
                       Address Line
-                      <input type="text" value={form.addressLine} onChange={onChange("addressLine")} placeholder="Street, house number" />
-                      {errors.addressLine && <small>{errors.addressLine}</small>}
+                      <input
+                        type="text"
+                        value={form.addressLine}
+                        onChange={onChange("addressLine")}
+                        placeholder="Street, house number"
+                      />
+                      {errors.addressLine && (
+                        <small>{errors.addressLine}</small>
+                      )}
                     </label>
 
                     <label>
                       City
-                      <input type="text" value={form.city} onChange={onChange("city")} placeholder="Kathmandu" />
+                      <input
+                        type="text"
+                        value={form.city}
+                        onChange={onChange("city")}
+                        placeholder="Kathmandu"
+                      />
                       {errors.city && <small>{errors.city}</small>}
                     </label>
 
                     <label>
                       State / Province
-                      <input type="text" value={form.state} onChange={onChange("state")} placeholder="Bagmati" />
+                      <input
+                        type="text"
+                        value={form.state}
+                        onChange={onChange("state")}
+                        placeholder="Bagmati"
+                      />
                     </label>
 
                     <label>
                       Postal Code
-                      <input type="text" value={form.postalCode} onChange={onChange("postalCode")} placeholder="44600" />
+                      <input
+                        type="text"
+                        value={form.postalCode}
+                        onChange={onChange("postalCode")}
+                        placeholder="44600"
+                      />
                     </label>
 
                     <label>
                       Country
-                      <input type="text" value={form.country} onChange={onChange("country")} placeholder="Nepal" />
+                      <input
+                        type="text"
+                        value={form.country}
+                        onChange={onChange("country")}
+                        placeholder="Nepal"
+                      />
                       {errors.country && <small>{errors.country}</small>}
                     </label>
 
                     <label className="profile-form-grid__full">
                       Display Location
-                      <input type="text" value={form.location} onChange={onChange("location")} placeholder="Kathmandu, Nepal" />
+                      <input
+                        type="text"
+                        value={form.location}
+                        onChange={onChange("location")}
+                        placeholder="Kathmandu, Nepal"
+                      />
                     </label>
                   </div>
                 )}
 
                 <div className="profile-form-actions">
                   {savedSection === activeSection && (
-                    <p className="profile-saved">{selectedSection.title} updated.</p>
+                    <p className="profile-saved">
+                      {selectedSection.title} updated.
+                    </p>
                   )}
-                  {saveApiError && <p className="profile-error">{saveApiError}</p>}
-                  <button type="submit" className="btn btn-primary" disabled={saving}>
+                  {saveApiError && (
+                    <p className="profile-error">{saveApiError}</p>
+                  )}
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={saving}
+                  >
                     {saving ? "Saving…" : `Save ${selectedSection.label}`}
                   </button>
                 </div>
@@ -414,31 +569,69 @@ export default function Profile() {
 
             {/* ── Security ── */}
             {activeSection === "security" && (
-              <form className="profile-password-card" onSubmit={handlePasswordSave} noValidate>
+              <form
+                className="profile-password-card"
+                onSubmit={handlePasswordSave}
+                noValidate
+              >
                 <div className="profile-password-grid">
                   <label>
                     Current Password
-                    <input type="password" value={passwordForm.old_password} onChange={onPasswordChange("old_password")} placeholder="Enter current password" autoComplete="current-password" />
-                    {passwordErrors.old_password && <small>{passwordErrors.old_password}</small>}
+                    <input
+                      type="password"
+                      value={passwordForm.old_password}
+                      onChange={onPasswordChange("old_password")}
+                      placeholder="Enter current password"
+                      autoComplete="current-password"
+                    />
+                    {passwordErrors.old_password && (
+                      <small>{passwordErrors.old_password}</small>
+                    )}
                   </label>
 
                   <label>
                     New Password
-                    <input type="password" value={passwordForm.new_password} onChange={onPasswordChange("new_password")} placeholder="At least 8 characters" autoComplete="new-password" />
-                    {passwordErrors.new_password && <small>{passwordErrors.new_password}</small>}
+                    <input
+                      type="password"
+                      value={passwordForm.new_password}
+                      onChange={onPasswordChange("new_password")}
+                      placeholder="At least 8 characters"
+                      autoComplete="new-password"
+                    />
+                    {passwordErrors.new_password && (
+                      <small>{passwordErrors.new_password}</small>
+                    )}
                   </label>
 
                   <label>
                     Confirm New Password
-                    <input type="password" value={passwordForm.confirm_password} onChange={onPasswordChange("confirm_password")} placeholder="Re-enter new password" autoComplete="new-password" />
-                    {passwordErrors.confirm_password && <small>{passwordErrors.confirm_password}</small>}
+                    <input
+                      type="password"
+                      value={passwordForm.confirm_password}
+                      onChange={onPasswordChange("confirm_password")}
+                      placeholder="Re-enter new password"
+                      autoComplete="new-password"
+                    />
+                    {passwordErrors.confirm_password && (
+                      <small>{passwordErrors.confirm_password}</small>
+                    )}
                   </label>
                 </div>
 
                 <div className="profile-form-actions">
-                  {passwordSaved    && <p className="profile-saved">Password changed successfully.</p>}
-                  {passwordApiError && <p className="profile-error">{passwordApiError}</p>}
-                  <button type="submit" className="btn btn-primary" disabled={passwordSaving}>
+                  {passwordSaved && (
+                    <p className="profile-saved">
+                      Password changed successfully.
+                    </p>
+                  )}
+                  {passwordApiError && (
+                    <p className="profile-error">{passwordApiError}</p>
+                  )}
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={passwordSaving}
+                  >
                     {passwordSaving ? "Updating…" : "Update Password"}
                   </button>
                 </div>
