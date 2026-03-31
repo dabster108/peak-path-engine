@@ -38,6 +38,18 @@ from .serializers import (
     GoogleAuthSerializer,
 )
 
+DEFAULT_CATEGORY_NAMES = ["Men", "Women"]
+DEFAULT_SECTION_NAMES = [
+    "Jackets",
+    "Footwear",
+    "Backpacks",
+    "Bottles",
+    "Equipment",
+    "Gore-Tex",
+    "Apparel",
+    "Accessories",
+]
+
 
 def generate_order_number():
     alphabet = string.ascii_uppercase + string.digits
@@ -186,9 +198,11 @@ class AddProductView(APIView):
     def post(self, request):
         data = {
             "name":     request.data.get("name"),
+            "description": request.data.get("description", ""),
             "category": request.data.get("category"),
             "section":  request.data.get("section"),
             "badge":    request.data.get("badge") or None,
+            "original_price": request.data.get("original_price") or None,
             "price":    request.data.get("price"),
             "stock":    request.data.get("stock"),
         }
@@ -249,12 +263,20 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
 class CategoryListView(generics.ListAPIView):
     serializer_class = CategorySerializer
     permission_classes = [AllowAny]
-    queryset = Category.objects.all()
+
+    def get_queryset(self):
+        for name in DEFAULT_CATEGORY_NAMES:
+            Category.objects.get_or_create(name=name)
+        return Category.objects.filter(name__in=DEFAULT_CATEGORY_NAMES).order_by("name")
 
 class SectionListView(generics.ListAPIView):
     serializer_class = SectionSerializer
     permission_classes = [AllowAny]
-    queryset = Section.objects.all()
+
+    def get_queryset(self):
+        for name in DEFAULT_SECTION_NAMES:
+            Section.objects.get_or_create(name=name)
+        return Section.objects.all().order_by("name")
 
 class BadgeListView(generics.ListAPIView):
     serializer_class = BadgeSerializer

@@ -1,0 +1,81 @@
+.modal-shell {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: modal-shell-fade 0.2s ease;
+}
+
+.modal-shell__dialog {
+  width: min(100%, 900px);
+  max-height: calc(100vh - 40px);
+  background: rgba(15, 23, 42, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  animation: modal-shell-pop 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal-shell__dialog--scrollable .modal-shell__body {
+  overflow: auto;
+  padding-right: 6px;
+}
+
+.modal-shell__title {
+  margin: 0;
+  font-size: 1.16rem;
+  font-weight: 800;
+  color: #fff;
+  font-family: var(--font-heading, serif);
+}
+
+.modal-shell__body {
+  color: rgba(255, 255, 255, 0.84);
+}
+
+.modal-shell__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+@keyframes modal-shell-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes modal-shell-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 600px) {
+  .modal-shell {
+    padding: 12px;
+  }
+
+  .modal-shell__dialog {
+    padding: 16px;
+    border-radius: 16px;
+    max-height: calc(100vh - 24px);
+  }
+}

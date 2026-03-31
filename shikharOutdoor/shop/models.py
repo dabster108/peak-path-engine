@@ -47,6 +47,7 @@ class Badge(models.Model):
 
 class Product(models.Model):
     name     = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default="")
     category = models.ForeignKey(Category, related_name='products', on_delete=models.SET_NULL, null=True, blank=True)
     section  = models.ForeignKey(Section,  related_name='products', on_delete=models.CASCADE)
     badge    = models.ForeignKey(Badge,    related_name='products', on_delete=models.SET_NULL, null=True, blank=True)

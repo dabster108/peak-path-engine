@@ -161,13 +161,37 @@ class ProductSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ("id", "name", "category", "section", "badge", "price", "stock", "images", "description")
+        fields = (
+            "id",
+            "name",
+            "description",
+            "category",
+            "section",
+            "badge",
+            "original_price",
+            "price",
+            "stock",
+            "images",
+        )
 
     def _get_or_create_related(self, model, name):
         if not name:
             return None
         obj, _ = model.objects.get_or_create(name=name)
         return obj
+
+    def validate_category(self, value):
+        name = value.get("name") if isinstance(value, dict) else value
+        normalized = (name or "").strip().lower()
+        allowed_map = {
+            "men": "Men",
+            "mens": "Men",
+            "women": "Women",
+            "womens": "Women",
+        }
+        if normalized not in allowed_map:
+            raise serializers.ValidationError('Category must be either "Men" or "Women".')
+        return allowed_map[normalized]
 
     def create(self, validated_data):
         category_name = (validated_data.pop('category', None) or {}).get('name')
