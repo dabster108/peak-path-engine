@@ -1,102 +1,29 @@
-// src\components\Navbar.jsx
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { allSearchItems, trendingSearches } from "../data/searchData";
 import { isAuthenticated, setAuth } from "../App";
 import { formatNpr } from "../utils/currency";
 import { useUser } from "../context/UserContext";
 import { useCart } from "../context/CartContext";
 import { useOrders } from "../context/OrderContext";
+import { useNavSections } from "../hooks/useNavSections";
+import api from "../utils/api";
 import "./Navbar.css";
 
-const navLinks = [
-  {
-    label: "Men's",
-    to: "/mens",
-    dropdown: [
-      { label: "Hiking Pants", sub: "Trail & summit pants" },
-      { label: "Down Jackets", sub: "Insulated & packable" },
-      { label: "Goretex", sub: "Waterproof shells" },
-      { label: "Buffs", sub: "Neck gaiters & balaclavas" },
-      { label: "Socks", sub: "Merino & cushioned" },
-      { label: "T-Shirts", sub: "DryFit & merino base" },
-      { label: "Goggles", sub: "UV400 protection" },
-      { label: "Trekking Poles", sub: "Carbon & aluminium" },
-    ],
-  },
-  {
-    label: "Women's",
-    to: "/womens",
-    dropdown: [
-      { label: "Hiking Pants", sub: "Trail & summit pants" },
-      { label: "Down Jackets", sub: "Insulated & packable" },
-      { label: "Goretex", sub: "Waterproof shells" },
-      { label: "Buffs", sub: "Neck gaiters & warmers" },
-      { label: "Socks", sub: "Merino & coolmax" },
-      { label: "T-Shirts", sub: "DryFit & merino base" },
-      { label: "Goggles", sub: "UV400 protection" },
-      { label: "Trekking Poles", sub: "Ultralight carbon" },
-    ],
-  },
-  {
-    label: "Gore-Tex",
-    to: "/goretex",
-    dropdown: [
-      { label: "Men's Jackets", sub: "Hardshells & anoraks" },
-      { label: "Women's Jackets", sub: "Shells & storm wear" },
-      { label: "Pants", sub: "Waterproof trail pants" },
-      { label: "Rain Sets", sub: "Jacket + pants combos" },
-      { label: "Raincoats", sub: "Ultralight packables" },
-      { label: "Shoe Covers", sub: "Gaiters & overboots" },
-      { label: "Socks", sub: "Waterproof socks" },
-    ],
-  },
-  {
-    label: "Footwear",
-    to: "/footwear",
-    dropdown: [
-      { label: "Trail Running Shoes", sub: "Grip & cushion" },
-      { label: "Trekking Boots", sub: "Ankle support & waterproof" },
-      { label: "Summit Boots", sub: "High-altitude crampon-ready" },
-      { label: "Camp Sandals", sub: "Post-hike recovery" },
-      { label: "Gaiters", sub: "Snow & mud protection" },
-    ],
-  },
-  {
-    label: "Backpacks",
-    to: "/backpacks",
-    dropdown: [
-      { label: "Day Packs", sub: "20–30L lightweight" },
-      { label: "Trekking Packs", sub: "35–50L multi-day" },
-      { label: "Summit Packs", sub: "55–75L expedition" },
-      { label: "Duffles", sub: "Base camp carry" },
-    ],
-  },
-  {
-    label: "Bottles",
-    to: "/bottles",
-    dropdown: [
-      { label: "Hydra Pack", sub: "Hands-free hydration bladders" },
-      { label: "Filter Bottles", sub: "Clean water anywhere" },
-      { label: "Water Bottles 100ml", sub: "Ultralight summit carry" },
-      { label: "Water Bottles 500ml", sub: "Trail & everyday use" },
-      { label: "Flask & Thermos", sub: "Vacuum-insulated hot & cold" },
-    ],
-  },
-  {
-    label: "Equipment",
-    to: "/equipment",
-    dropdown: [
-      { label: "Trekking Poles", sub: "Carbon & aluminium" },
-      { label: "Goggles", sub: "UV400 protection" },
-      { label: "Headlamps", sub: "High-lumen trail" },
-      { label: "Sleeping Bags", sub: "All-season warmth" },
-      { label: "Tents", sub: "Lightweight shelters" },
-    ],
-  },
-  { label: "Blog", to: "/blog" },
-  { label: "About", to: "/about" },
-];
+const SECTION_ROUTE_MAP = {
+  "gore-tex": "/goretex",
+  "goretex": "/goretex",
+  footwear: "/footwear",
+  backpacks: "/backpacks",
+  bottles: "/bottles",
+  equipment: "/equipment",
+};
+
+function getSectionRoute(sectionName) {
+  return (
+    SECTION_ROUTE_MAP[sectionName.toLowerCase()] ||
+    `/${sectionName.toLowerCase()}`
+  );
+}
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -105,76 +32,133 @@ export default function Navbar() {
   const [mobileAccordion, setMobileAccordion] = useState(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [trendingSearches, setTrendingSearches] = useState([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+
   const profileRef = useRef(null);
   const cartRef = useRef(null);
+  const searchInputRef = useRef(null);
+  const searchDebounce = useRef(null);
+
   const location = useLocation();
   const navigate = useNavigate();
-  const searchInputRef = useRef(null);
   const isHome = location.pathname === "/";
+
   const { user, displayName, clearUser, isAdmin } = useUser();
   const { items, itemCount, subtotal, removeItem, updateQuantity, clearCart } =
     useCart();
   const { placeOrder } = useOrders();
+
   const avatarLetter = (displayName || "U").charAt(0).toUpperCase();
-  const userEmail = user?.email || "no-email@shikhar.local";
+  const userEmail = user?.email || "";
 
-  const handleCheckout = async () => {
+  const { navSections, allSections } = useNavSections();
+
+  const dynamicNavLinks = [
+    {
+      label: "Men's",
+      to: "/mens",
+      dropdown: allSections.map((s) => ({
+        label: s.name,
+        sub: s.sub_sections?.[0]?.description || s.name,
+        to: getSectionRoute(s.name),
+      })),
+    },
+    {
+      label: "Women's",
+      to: "/womens",
+      dropdown: allSections.map((s) => ({
+        label: s.name,
+        sub: s.sub_sections?.[0]?.description || s.name,
+        to: getSectionRoute(s.name),
+      })),
+    },
+    // Only the 5 allowed sections get their own nav link
+    ...navSections.map((section) => ({
+      label: section.name,
+      to: getSectionRoute(section.name),
+      dropdown:
+        section.sub_sections?.map((sub) => ({
+          label: sub.name,
+          sub: sub.description || sub.name,
+          to: getSectionRoute(section.name),
+        })) || [],
+    })),
+    { label: "Blog", to: "/blog" },
+    { label: "About", to: "/about" },
+  ];
+
+  // ── Checkout ───────────────────────────────────────────────
+  async function handleCheckout() {
     if (items.length === 0) return;
-
-    const createdOrder = await placeOrder(); 
+    const createdOrder = await placeOrder();
     if (!createdOrder) return;
-
-    // Cart is cleared server-side; sync local state
     clearCart();
     setCartOpen(false);
     navigate(`/orders?orderId=${createdOrder.id}`);
-  };
+  }
 
-  // Close profile dropdown and cart on outside click
+  // ── Search ─────────────────────────────────────────────────
   useEffect(() => {
-    const handler = (e) => {
-      if (profileRef.current && !profileRef.current.contains(e.target)) {
-        setProfileOpen(false);
-      }
-      if (cartRef.current && !cartRef.current.contains(e.target)) {
-        setCartOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    // Load trending — just use popular section/category names from API
+    api
+      .get("sections/")
+      .then((res) => {
+        setTrendingSearches(res.data.slice(0, 6).map((s) => s.name));
+      })
+      .catch(() => {});
   }, []);
 
-  // Close profile dropdown and cart on route change
   useEffect(() => {
-    setProfileOpen(false);
-    setCartOpen(false);
-  }, [location]);
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    clearTimeout(searchDebounce.current);
+    setSearchLoading(true);
+    searchDebounce.current = setTimeout(() => {
+      api
+        .get("products/")
+        .then((res) => {
+          const q = searchQuery.toLowerCase();
+          const matched = res.data
+            .filter(
+              (p) =>
+                p.name.toLowerCase().includes(q) ||
+                (p.category || "").toLowerCase().includes(q) ||
+                (p.section || "").toLowerCase().includes(q),
+            )
+            .slice(0, 8)
+            .map((p) => ({
+              id: p.id,
+              name: p.name,
+              category: p.category || "",
+              section: p.section || "",
+              price: parseFloat(p.price),
+              to: getSectionRoute(p.section || ""),
+            }));
+          setSearchResults(matched);
+        })
+        .catch(() => {
+          setSearchResults([]);
+        })
+        .finally(() => setSearchLoading(false));
+    }, 300);
+    return () => clearTimeout(searchDebounce.current);
+  }, [searchQuery]);
 
-  // Derived search results
-  const searchResults =
-    searchQuery.trim().length > 0
-      ? allSearchItems
-          .filter(
-            (item) =>
-              item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-              item.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-              item.section.toLowerCase().includes(searchQuery.toLowerCase()),
-          )
-          .slice(0, 8)
-      : [];
-
-  // Focus input when overlay opens
   useEffect(() => {
     if (searchOpen) {
       setTimeout(() => searchInputRef.current?.focus(), 80);
     } else {
       setSearchQuery("");
+      setSearchResults([]);
     }
   }, [searchOpen]);
 
-  // Close search on Escape
   useEffect(() => {
     const handler = (e) => {
       if (e.key === "Escape") setSearchOpen(false);
@@ -183,21 +167,34 @@ export default function Navbar() {
     return () => window.removeEventListener("keydown", handler);
   }, [searchOpen]);
 
-  // Close search on route change
+  // ── Outside click handlers ─────────────────────────────────
   useEffect(() => {
-    setSearchOpen(false);
-  }, [location]);
-
-  useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 50);
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    const handler = (e) => {
+      if (profileRef.current && !profileRef.current.contains(e.target))
+        setProfileOpen(false);
+      if (cartRef.current && !cartRef.current.contains(e.target))
+        setCartOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // ── Route change cleanup ───────────────────────────────────
   useEffect(() => {
+    setProfileOpen(false);
+    setCartOpen(false);
+    setSearchOpen(false);
     setMobileOpen(false);
   }, [location]);
 
+  // ── Scroll ─────────────────────────────────────────────────
+  useEffect(() => {
+    const handler = () => setScrolled(window.scrollY > 50);
+    window.addEventListener("scroll", handler, { passive: true });
+    return () => window.removeEventListener("scroll", handler);
+  }, []);
+
+  // ── Body scroll lock ───────────────────────────────────────
   useEffect(() => {
     document.body.classList.toggle("no-scroll", mobileOpen);
     return () => document.body.classList.remove("no-scroll");
@@ -217,6 +214,7 @@ export default function Navbar() {
         Free shipping on orders over {formatNpr(2999)} &nbsp;|&nbsp;{" "}
         <span>Join SHIKHAR REWARDS</span>
       </div>
+
       <nav className={navClass}>
         <div className="navbar__inner">
           {/* Logo */}
@@ -229,12 +227,14 @@ export default function Navbar() {
 
           {/* Center Nav */}
           <ul className="navbar__links">
-            {navLinks.map((link, i) => (
+            {dynamicNavLinks.map((link, i) => (
               <li
-                key={link.to}
+                key={link.to + link.label}
                 style={{ animationDelay: `${i * 80}ms` }}
-                className={link.dropdown ? "has-dropdown" : ""}
-                onMouseEnter={() => link.dropdown && setOpenDropdown(link.to)}
+                className={link.dropdown?.length ? "has-dropdown" : ""}
+                onMouseEnter={() =>
+                  link.dropdown?.length && setOpenDropdown(link.to + link.label)
+                }
                 onMouseLeave={() => setOpenDropdown(null)}
               >
                 <Link
@@ -242,9 +242,9 @@ export default function Navbar() {
                   className={`navbar__link ${location.pathname === link.to ? "active" : ""}`}
                 >
                   {link.label}
-                  {link.dropdown && (
+                  {link.dropdown?.length > 0 && (
                     <svg
-                      className={`dropdown-chevron${openDropdown === link.to ? " open" : ""}`}
+                      className={`dropdown-chevron${openDropdown === link.to + link.label ? " open" : ""}`}
                       width="10"
                       height="6"
                       viewBox="0 0 10 6"
@@ -260,15 +260,16 @@ export default function Navbar() {
                     </svg>
                   )}
                 </Link>
-                {link.dropdown && (
+
+                {link.dropdown?.length > 0 && (
                   <div
-                    className={`nav-dropdown${openDropdown === link.to ? " open" : ""}`}
+                    className={`nav-dropdown${openDropdown === link.to + link.label ? " open" : ""}`}
                   >
                     <div className="nav-dropdown__inner">
                       {link.dropdown.map((item) => (
                         <Link
                           key={item.label}
-                          to={link.to}
+                          to={item.to || link.to}
                           className="nav-dropdown__item"
                         >
                           <span className="nav-dropdown__item-name">
@@ -288,6 +289,7 @@ export default function Navbar() {
 
           {/* Right Icons */}
           <div className="navbar__actions">
+            {/* Search */}
             <button
               className={`navbar__icon-btn${searchOpen ? " search-active" : ""}`}
               aria-label="Search"
@@ -305,7 +307,8 @@ export default function Navbar() {
                 <path d="m21 21-4.35-4.35" />
               </svg>
             </button>
-            {/* Profile / Login icon */}
+
+            {/* Profile */}
             <div className="profile-menu-wrap" ref={profileRef}>
               <button
                 className="navbar__icon-btn profile-icon-btn"
@@ -338,12 +341,10 @@ export default function Navbar() {
                 )}
               </button>
 
-              {/* Dropdown — only shown when logged in */}
               {isAuthenticated() && (
                 <div
                   className={`profile-dropdown${profileOpen ? " open" : ""}`}
                 >
-                  {/* Profile header */}
                   <div className="profile-dropdown__header">
                     <div className="profile-dropdown__avatar">
                       {avatarLetter}
@@ -358,7 +359,6 @@ export default function Navbar() {
 
                   <div className="profile-dropdown__divider" />
 
-                  {/* Menu items */}
                   <button
                     className="profile-dropdown__item"
                     onClick={() => {
@@ -466,6 +466,8 @@ export default function Navbar() {
                 </div>
               )}
             </div>
+
+            {/* Cart */}
             <button
               className={`navbar__icon-btn cart-btn${cartOpen ? " active" : ""}`}
               aria-label="Cart"
@@ -485,6 +487,8 @@ export default function Navbar() {
               </svg>
               {itemCount > 0 && <span className="cart-badge">{itemCount}</span>}
             </button>
+
+            {/* Hamburger */}
             <button
               className={`hamburger ${mobileOpen ? "open" : ""}`}
               onClick={() => setMobileOpen(!mobileOpen)}
@@ -498,7 +502,7 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {/* Mobile Drawer */}
+      {/* ── Mobile Drawer ─────────────────────────────────── */}
       <div className={`mobile-drawer ${mobileOpen ? "open" : ""}`}>
         <div className="mobile-drawer__header">
           <Link to="/" className="navbar__logo">
@@ -511,27 +515,33 @@ export default function Navbar() {
             ✕
           </button>
         </div>
+
         <ul className="mobile-drawer__links">
           <li>
             <Link to="/" className={location.pathname === "/" ? "active" : ""}>
               Home
             </Link>
           </li>
-          {navLinks.map((link) => (
-            <li key={link.to} className={link.dropdown ? "has-accordion" : ""}>
-              {link.dropdown ? (
+          {dynamicNavLinks.map((link) => (
+            <li
+              key={link.to + link.label}
+              className={link.dropdown?.length ? "has-accordion" : ""}
+            >
+              {link.dropdown?.length ? (
                 <>
                   <button
-                    className={`mobile-accordion-btn${mobileAccordion === link.to ? " open" : ""}${location.pathname === link.to ? " active" : ""}`}
+                    className={`mobile-accordion-btn${mobileAccordion === link.to + link.label ? " open" : ""}${location.pathname === link.to ? " active" : ""}`}
                     onClick={() =>
                       setMobileAccordion(
-                        mobileAccordion === link.to ? null : link.to,
+                        mobileAccordion === link.to + link.label
+                          ? null
+                          : link.to + link.label,
                       )
                     }
                   >
                     {link.label}
                     <svg
-                      className={`accordion-chevron${mobileAccordion === link.to ? " open" : ""}`}
+                      className={`accordion-chevron${mobileAccordion === link.to + link.label ? " open" : ""}`}
                       width="10"
                       height="6"
                       viewBox="0 0 10 6"
@@ -546,12 +556,12 @@ export default function Navbar() {
                       />
                     </svg>
                   </button>
-                  {mobileAccordion === link.to && (
+                  {mobileAccordion === link.to + link.label && (
                     <ul className="mobile-accordion__items">
                       {link.dropdown.map((item) => (
                         <li key={item.label}>
                           <Link
-                            to={link.to}
+                            to={item.to || link.to}
                             onClick={() => setMobileOpen(false)}
                           >
                             <span className="mobile-accordion__name">
@@ -577,6 +587,7 @@ export default function Navbar() {
             </li>
           ))}
         </ul>
+
         <div className="mobile-drawer__footer">
           {isAdmin && (
             <Link
@@ -584,8 +595,7 @@ export default function Navbar() {
               className="mobile-drawer__admin-link"
               onClick={() => setMobileOpen(false)}
             >
-              Admin Panel
-              <span aria-hidden="true">-&gt;</span>
+              Admin Panel <span aria-hidden="true">-&gt;</span>
             </Link>
           )}
           <p className="section-label">Conquer Every Summit</p>
@@ -595,7 +605,7 @@ export default function Navbar() {
         <div className="drawer-backdrop" onClick={() => setMobileOpen(false)} />
       )}
 
-      {/* ====== Search Overlay ====== */}
+      {/* ── Search Overlay ────────────────────────────────── */}
       {searchOpen && (
         <div className="search-overlay" onClick={() => setSearchOpen(false)}>
           <div
@@ -671,10 +681,11 @@ export default function Navbar() {
               </button>
             </div>
 
-            {/* Results */}
             {searchQuery.trim().length > 0 ? (
               <div className="search-overlay__results">
-                {searchResults.length > 0 ? (
+                {searchLoading ? (
+                  <p className="search-overlay__results-label">Searching…</p>
+                ) : searchResults.length > 0 ? (
                   <>
                     <p className="search-overlay__results-label">
                       {searchResults.length} result
@@ -682,9 +693,13 @@ export default function Navbar() {
                       {searchQuery}&rdquo;
                     </p>
                     <ul className="search-overlay__list">
-                      {searchResults.map((item, i) => (
-                        <li key={i}>
-                          <Link to={item.to} className="search-result-item">
+                      {searchResults.map((item) => (
+                        <li key={item.id}>
+                          <Link
+                            to={item.to}
+                            className="search-result-item"
+                            onClick={() => setSearchOpen(false)}
+                          >
                             <div className="search-result-item__icon">
                               <svg
                                 width="14"
@@ -778,6 +793,7 @@ export default function Navbar() {
         </div>
       )}
 
+      {/* ── Cart Panel ────────────────────────────────────── */}
       <aside className={`cart-panel${cartOpen ? " open" : ""}`} ref={cartRef}>
         <div className="cart-panel__header">
           <div>
@@ -834,20 +850,20 @@ export default function Navbar() {
                     <div className="cart-item__qty">
                       <button
                         type="button"
+                        aria-label="Decrease quantity"
                         onClick={() =>
                           updateQuantity(item.id, item.size, item.quantity - 1)
                         }
-                        aria-label="Decrease quantity"
                       >
                         -
                       </button>
                       <span>{item.quantity}</span>
                       <button
                         type="button"
+                        aria-label="Increase quantity"
                         onClick={() =>
                           updateQuantity(item.id, item.size, item.quantity + 1)
                         }
-                        aria-label="Increase quantity"
                       >
                         +
                       </button>

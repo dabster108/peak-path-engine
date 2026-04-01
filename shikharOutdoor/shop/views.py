@@ -15,7 +15,7 @@ from google.auth.transport import requests
 
 from django.conf import settings
 
-from .models import AboutReview, BlogPost, Cart, CartItem, CustomUser, Order, OrderItem, Product, ProductImage, Review, Section, Badge, Category, UserProfile
+from .models import AboutReview, BlogPost, Cart, CartItem, CustomUser, Order, OrderItem, Product, ProductImage, Review, Section, Badge, Category, SubSection, UserProfile
 from .serializers import (
     AboutReviewSerializer,
     BadgeSerializer,
@@ -30,6 +30,7 @@ from .serializers import (
     LoginSerializer,
     ReviewSerializer,
     SectionSerializer,
+    SubSectionSerializer,
     UserListSerializer,
     UserProfileSerializer,
     UserSerializer,
@@ -277,6 +278,17 @@ class SectionListView(generics.ListAPIView):
         for name in DEFAULT_SECTION_NAMES:
             Section.objects.get_or_create(name=name)
         return Section.objects.all().order_by("name")
+    
+class SubSectionListView(generics.ListAPIView):
+    serializer_class   = SubSectionSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        section = self.request.query_params.get('section')
+        qs = SubSection.objects.select_related('section').all()
+        if section:
+            qs = qs.filter(section__name__iexact=section)
+        return qs
 
 class BadgeListView(generics.ListAPIView):
     serializer_class = BadgeSerializer

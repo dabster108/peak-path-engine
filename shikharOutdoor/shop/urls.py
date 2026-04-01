@@ -21,6 +21,7 @@ urlpatterns = [
     # Dropdowns
     path("categories/", views.CategoryListView.as_view()),
     path("sections/",   views.SectionListView.as_view()),
+    path("sub-sections/", views.SubSectionListView.as_view()),
     path("badges/",     views.BadgeListView.as_view()),
 
     # Cart
