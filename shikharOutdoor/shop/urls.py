@@ -21,6 +21,7 @@ urlpatterns = [
     # Dropdowns
     path("categories/", views.CategoryListView.as_view()),
     path("sections/",   views.SectionListView.as_view()),
+    path("sub-sections/", views.SubSectionListView.as_view()),
     path("badges/",     views.BadgeListView.as_view()),
 
     # Cart
@@ -40,5 +41,10 @@ urlpatterns = [
 
     # About
     path("about/reviews/", views.AboutReviewListCreateView.as_view()),
+
+    # Chat
+    path("chat/",                          views.ChatSessionView.as_view()),
+    path("admin/chat/",                    views.AdminChatListView.as_view()),
+    path("admin/chat/<int:session_id>/",   views.AdminChatReplyView.as_view()),
 
 ]

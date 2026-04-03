@@ -37,6 +37,18 @@ class Section(models.Model):
     def __str__(self):
         return self.name
 
+class SubSection(models.Model):
+    section     = models.ForeignKey(Section, on_delete=models.CASCADE, related_name='sub_sections')
+    name        = models.CharField(max_length=255)
+    description = models.CharField(max_length=255, blank=True, default="")
+    order       = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'name']
+
+    def __str__(self):
+        return f"{self.section.name} → {self.name}"
+
 
 class Badge(models.Model):
     name = models.CharField(max_length=255)
@@ -50,6 +62,7 @@ class Product(models.Model):
     description = models.TextField(blank=True, default="")
     category = models.ForeignKey(Category, related_name='products', on_delete=models.SET_NULL, null=True, blank=True)
     section  = models.ForeignKey(Section,  related_name='products', on_delete=models.CASCADE)
+    sub_section = models.ForeignKey(SubSection, related_name='products', on_delete=models.SET_NULL, null=True, blank=True)
     badge    = models.ForeignKey(Badge,    related_name='products', on_delete=models.SET_NULL, null=True, blank=True)
     original_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     price    = models.DecimalField(max_digits=10, decimal_places=2)
@@ -189,3 +202,39 @@ class AboutReview(models.Model):
 
     def __str__(self):
         return f"{self.name} — {self.product}"
+    
+
+
+
+# Chat Bot
+
+class ChatSession(models.Model):
+    user       = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='chat_sessions')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active  = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f"Chat with {self.user.username}"
+
+
+class ChatMessage(models.Model):
+    SENDER_CHOICES = [
+        ('user',  'User'),
+        ('admin', 'Admin'),
+        ('bot',   'Bot'),
+    ]
+    session    = models.ForeignKey(ChatSession, on_delete=models.CASCADE, related_name='messages')
+    sender     = models.CharField(max_length=10, choices=SENDER_CHOICES)
+    text       = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    read       = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"{self.sender}: {self.text[:40]}"

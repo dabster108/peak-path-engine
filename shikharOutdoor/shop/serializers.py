@@ -1,6 +1,6 @@
 # shikharOutdoor\shop\serializers.py
 from rest_framework import serializers
-from .models import AboutReview, BlogPost, Cart, CartItem, CustomUser, Order, OrderItem, Product, ProductImage, Review, Section, Badge, Category, UserProfile
+from .models import AboutReview, BlogPost, Cart, CartItem, ChatMessage, ChatSession, CustomUser, Order, OrderItem, Product, ProductImage, Review, Section, Badge, Category, SubSection, UserProfile
 import re
 from django.contrib.auth.password_validation import validate_password
 
@@ -153,25 +153,18 @@ class ProductImageSerializer(serializers.ModelSerializer):
 
 
 class ProductSerializer(serializers.ModelSerializer):
-    category = serializers.CharField(source='category.name', allow_null=True, required=False)
-    section  = serializers.CharField(source='section.name')
-    badge    = serializers.CharField(source='badge.name', allow_null=True, required=False)
-    images   = ProductImageSerializer(many=True, read_only=True)  
-    description = serializers.CharField(allow_blank=True, required=False)
+    category    = serializers.CharField(source='category.name', allow_null=True, required=False)
+    section     = serializers.CharField(source='section.name')
+    sub_section = serializers.CharField(source='sub_section.name', allow_null=True, required=False)
+    badge       = serializers.CharField(source='badge.name', allow_null=True, required=False)
+    images      = ProductImageSerializer(many=True, read_only=True)
+    description = serializers.CharField(allow_blank=True, required=False, default="")
 
     class Meta:
-        model = Product
+        model  = Product
         fields = (
-            "id",
-            "name",
-            "description",
-            "category",
-            "section",
-            "badge",
-            "original_price",
-            "price",
-            "stock",
-            "images",
+            "id", "name", "description", "category", "section", "sub_section",
+            "badge", "original_price", "price", "stock", "images",
         )
 
     def _get_or_create_related(self, model, name):
@@ -180,45 +173,60 @@ class ProductSerializer(serializers.ModelSerializer):
         obj, _ = model.objects.get_or_create(name=name)
         return obj
 
-    def validate_category(self, value):
-        name = value.get("name") if isinstance(value, dict) else value
-        normalized = (name or "").strip().lower()
-        allowed_map = {
-            "men": "Men",
-            "mens": "Men",
-            "women": "Women",
-            "womens": "Women",
-        }
-        if normalized not in allowed_map:
-            raise serializers.ValidationError('Category must be either "Men" or "Women".')
-        return allowed_map[normalized]
+    def _extract_name(self, value):
+        """Value arrives as dict {'name': '...'} from source mapping, or plain string."""
+        if isinstance(value, dict):
+            return value.get('name') or None
+        return value or None
 
     def create(self, validated_data):
-        category_name = (validated_data.pop('category', None) or {}).get('name')
-        section_name  = (validated_data.pop('section', {})).get('name')
-        badge_name    = (validated_data.pop('badge', None) or {}).get('name')
+        category_raw    = validated_data.pop('category',    None)
+        section_raw     = validated_data.pop('section',     {})
+        sub_section_raw = validated_data.pop('sub_section', None)
+        badge_raw       = validated_data.pop('badge',       None)
+
+        category_name    = self._extract_name(category_raw)
+        section_name     = self._extract_name(section_raw)
+        sub_section_name = self._extract_name(sub_section_raw)
+        badge_name       = self._extract_name(badge_raw)
+
+        section = self._get_or_create_related(Section, section_name)
+
+        sub_section = None
+        if sub_section_name and section:
+            sub_section, _ = SubSection.objects.get_or_create(
+                name=sub_section_name, section=section
+            )
+
         return Product.objects.create(
             category=self._get_or_create_related(Category, category_name),
-            section=self._get_or_create_related(Section, section_name),
+            section=section,
+            sub_section=sub_section,
             badge=self._get_or_create_related(Badge, badge_name),
             **validated_data,
         )
 
     def update(self, instance, validated_data):
-        category_name = (validated_data.pop('category', None) or {}).get('name')
-        section_name  = (validated_data.pop('section', {}) or {}).get('name')
-        badge_name    = (validated_data.pop('badge', None) or {}).get('name')
+        category_raw    = validated_data.pop('category',    None)
+        section_raw     = validated_data.pop('section',     None)
+        validated_data.pop('sub_section', None)  
+        badge_raw       = validated_data.pop('badge',       None)
+
+        category_name = self._extract_name(category_raw)
+        section_name  = self._extract_name(section_raw)
+        badge_name    = self._extract_name(badge_raw)
+
         if category_name is not None:
             instance.category = self._get_or_create_related(Category, category_name)
         if section_name is not None:
             instance.section = self._get_or_create_related(Section, section_name)
         if badge_name is not None:
             instance.badge = self._get_or_create_related(Badge, badge_name)
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
         return instance
-    
 
 class ReviewSerializer(serializers.ModelSerializer):
     date = serializers.SerializerMethodField()
@@ -235,10 +243,20 @@ class CategorySerializer(serializers.ModelSerializer):
         model = Category
         fields = ("id", "name")
 
-class SectionSerializer(serializers.ModelSerializer):
+class SubSectionSerializer(serializers.ModelSerializer):
+    section = serializers.CharField(source='section.name', read_only=True)
+
     class Meta:
-        model = Section
-        fields = ("id", "name")
+        model  = SubSection
+        fields = ('id', 'name', 'description', 'section', 'order')
+
+
+class SectionSerializer(serializers.ModelSerializer):
+    sub_sections = SubSectionSerializer(many=True, read_only=True)
+
+    class Meta:
+        model  = Section
+        fields = ('id', 'name', 'sub_sections')
 
 class BadgeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -403,4 +421,35 @@ class AboutReviewSerializer(serializers.ModelSerializer):
         return value.strip()
 
 
+# Chat Bot Serializers
+
+class ChatMessageSerializer(serializers.ModelSerializer):
+    time = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = ChatMessage
+        fields = ('id', 'sender', 'text', 'time', 'read')
+
+    def get_time(self, obj):
+        return obj.created_at.strftime('%H:%M')
+
+
+class ChatSessionSerializer(serializers.ModelSerializer):
+    messages      = ChatMessageSerializer(many=True, read_only=True)
+    user_username = serializers.CharField(source='user.username', read_only=True)
+    user_email    = serializers.CharField(source='user.email',    read_only=True)
+    unread_count  = serializers.SerializerMethodField()
+    last_message  = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = ChatSession
+        fields = ('id', 'user_username', 'user_email', 'messages',
+                  'unread_count', 'last_message', 'updated_at', 'is_active')
+
+    def get_unread_count(self, obj):
+        return obj.messages.filter(read=False, sender='user').count()
+
+    def get_last_message(self, obj):
+        last = obj.messages.last()
+        return last.text[:60] if last else ""
 
