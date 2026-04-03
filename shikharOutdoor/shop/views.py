@@ -1,5 +1,6 @@
 # shikharOutdoor\shop\views.py
-from datetime import date, timedelta
+from datetime import date, timedelta, timezone
+import random
 import json , secrets, string, urllib.request
 from urllib.error import HTTPError, URLError
 
@@ -15,13 +16,15 @@ from google.auth.transport import requests
 
 from django.conf import settings
 
-from .models import AboutReview, BlogPost, Cart, CartItem, CustomUser, Order, OrderItem, Product, ProductImage, Review, Section, Badge, Category, SubSection, UserProfile
+from .models import AboutReview, BlogPost, Cart, CartItem, ChatMessage, ChatSession, CustomUser, Order, OrderItem, Product, ProductImage, Review, Section, Badge, Category, SubSection, UserProfile
 from .serializers import (
     AboutReviewSerializer,
     BadgeSerializer,
     BlogPostSerializer,
     CartSerializer,
     CategorySerializer,
+    ChatMessageSerializer,
+    ChatSessionSerializer,
     OrderSerializer,
     ProductImageSerializer,
     ProductSerializer,
@@ -51,6 +54,14 @@ DEFAULT_SECTION_NAMES = [
     "Accessories",
 ]
 
+BOT_REPLIES = [
+    "Thanks for reaching out! Our gear specialists will be with you shortly.",
+    "Great question! For sizing advice, we recommend checking our size guide or sharing your height and weight.",
+    "We carry a wide range of mountain gear. Could you tell me more about your planned trek?",
+    "For high-altitude treks, we recommend our Gore-Tex shells paired with a down mid-layer. Want more details?",
+    "Our team typically replies within a few minutes. In the meantime, feel free to browse our collections!",
+    "That product is very popular! Would you like to know more about its features or availability?",
+]
 
 def generate_order_number():
     alphabet = string.ascii_uppercase + string.digits
@@ -198,14 +209,15 @@ class AddProductView(APIView):
 
     def post(self, request):
         data = {
-            "name":     request.data.get("name"),
-            "description": request.data.get("description", ""),
-            "category": request.data.get("category"),
-            "section":  request.data.get("section"),
-            "badge":    request.data.get("badge") or None,
+            "name":          request.data.get("name"),
+            "description":   request.data.get("description", ""),
+            "category":      request.data.get("category"),
+            "section":       request.data.get("section"),
+            "sub_section":   request.data.get("sub_section") or None,
+            "badge":         request.data.get("badge") or None,
             "original_price": request.data.get("original_price") or None,
-            "price":    request.data.get("price"),
-            "stock":    request.data.get("stock"),
+            "price":         request.data.get("price"),
+            "stock":         request.data.get("stock"),
         }
 
         serializer = ProductSerializer(data=data, context={"request": request})
@@ -220,9 +232,16 @@ class AddProductView(APIView):
                 is_primary=(i == 0),
                 order=i,
             )
-        result = ProductSerializer(product, context={"request": request})
-        return Response(result.data, status=201)
+        return Response(ProductSerializer(product, context={"request": request}).data, status=201)
 
+
+class CategoryListView(generics.ListAPIView):
+    serializer_class   = CategorySerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        # Return ALL categories from DB — managed via Django admin
+        return Category.objects.all().order_by("name")
 class ReviewListCreateView(APIView):
     def get_permissions(self):
         return [AllowAny()] if self.request.method == 'GET' else [IsAuthenticated()]
@@ -257,9 +276,42 @@ class ProductListView(generics.ListAPIView):
 
 
 class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
-    serializer_class = ProductSerializer
+    serializer_class   = ProductSerializer
     permission_classes = [IsAuthenticated]
-    queryset = Product.objects.all()
+    queryset           = Product.objects.all()
+
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        # Handle relational fields manually before passing to serializer
+        data = request.data.copy()
+
+        sub_section_name = data.pop('sub_section', None)
+        if isinstance(sub_section_name, list):
+            sub_section_name = sub_section_name[0] if sub_section_name else None
+
+        section_name = data.get('section')
+        if isinstance(section_name, list):
+            section_name = section_name[0]
+
+        serializer = self.get_serializer(instance, data=data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        product = serializer.save()
+
+        # Now handle sub_section separately after section is resolved
+        if sub_section_name is not None:
+            if sub_section_name == "" or sub_section_name == "null":
+                product.sub_section = None
+            else:
+                section = product.section
+                if section:
+                    sub, _ = SubSection.objects.get_or_create(
+                        name=sub_section_name, section=section
+                    )
+                    product.sub_section = sub
+            product.save()
+
+        return Response(ProductSerializer(product, context={'request': request}).data)
 
 class CategoryListView(generics.ListAPIView):
     serializer_class = CategorySerializer
@@ -542,5 +594,93 @@ class AboutReviewListCreateView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save(user=request.user)
         return Response(serializer.data, status=201)
+
+
+# ────────────────────────────────────────────────────────────
+# Chatbot
+# ───────────────────────────────────────────────────────────
+
+class ChatSessionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        session, _ = ChatSession.objects.get_or_create(
+            user=request.user,
+            defaults={'is_active': True}
+        )
+        # Mark admin messages as read
+        session.messages.filter(sender__in=['admin', 'bot'], read=False).update(read=True)
+        serializer = ChatSessionSerializer(session)
+        return Response(serializer.data)
+
+    def post(self, request):
+        """Send a message from user."""
+        text = request.data.get('text', '').strip()
+        if not text:
+            return Response({'error': 'Message cannot be empty.'}, status=400)
+
+        session, _ = ChatSession.objects.get_or_create(user=request.user)
+        message = ChatMessage.objects.create(
+            session=session, sender='user', text=text
+        )
+        session.save()  # update updated_at
+
+        # Check if admin replied in the last 2 minutes
+        two_mins_ago = timezone.now() - timedelta(minutes=2)
+        admin_active = session.messages.filter(
+            sender='admin', created_at__gte=two_mins_ago
+        ).exists()
+
+        # Auto bot reply if no recent admin activity
+        if not admin_active:
+            bot_text = random.choice(BOT_REPLIES)
+            ChatMessage.objects.create(
+                session=session, sender='bot', text=bot_text
+            )
+
+        serializer = ChatSessionSerializer(session)
+        return Response(serializer.data, status=201)
+
+
+class AdminChatListView(APIView):
+    """Admin: list all chat sessions."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not (request.user.is_staff or request.user.role == 'admin' or request.user.is_superuser):
+            return Response({'error': 'Forbidden.'}, status=403)
+        sessions = ChatSession.objects.all().prefetch_related('messages')
+        serializer = ChatSessionSerializer(sessions, many=True)
+        return Response(serializer.data)
+
+
+class AdminChatReplyView(APIView):
+    """Admin: reply to a chat session."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, session_id):
+        if not (request.user.is_staff or request.user.role == 'admin' or request.user.is_superuser):
+            return Response({'error': 'Forbidden.'}, status=403)
+
+        try:
+            session = ChatSession.objects.get(pk=session_id)
+        except ChatSession.DoesNotExist:
+            return Response({'error': 'Session not found.'}, status=404)
+
+        text = request.data.get('text', '').strip()
+        if not text:
+            return Response({'error': 'Message cannot be empty.'}, status=400)
+
+        # Mark all user messages as read
+        session.messages.filter(sender='user', read=False).update(read=True)
+
+        message = ChatMessage.objects.create(
+            session=session, sender='admin', text=text
+        )
+        session.save()
+
+        return Response(ChatMessageSerializer(message).data, status=201)
+
+
 
 

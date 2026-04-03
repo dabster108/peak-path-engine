@@ -202,3 +202,39 @@ class AboutReview(models.Model):
 
     def __str__(self):
         return f"{self.name} — {self.product}"
+    
+
+
+
+# Chat Bot
+
+class ChatSession(models.Model):
+    user       = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='chat_sessions')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active  = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f"Chat with {self.user.username}"
+
+
+class ChatMessage(models.Model):
+    SENDER_CHOICES = [
+        ('user',  'User'),
+        ('admin', 'Admin'),
+        ('bot',   'Bot'),
+    ]
+    session    = models.ForeignKey(ChatSession, on_delete=models.CASCADE, related_name='messages')
+    sender     = models.CharField(max_length=10, choices=SENDER_CHOICES)
+    text       = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    read       = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"{self.sender}: {self.text[:40]}"

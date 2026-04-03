@@ -424,7 +424,7 @@ export default function Admin() {
           name:           product.name.trim(),
           category:       product.category,
           section:        product.section,
-          sub_section:    product.sub_section || null,
+          sub_section:    product.sub_section || "",
           badge:          product.badge || null,
           original_price: product.originalPrice === "" || product.originalPrice === null
                             ? null : Number(product.originalPrice),
