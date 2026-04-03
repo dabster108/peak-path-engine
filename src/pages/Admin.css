@@ -1127,6 +1127,230 @@
   border-color: rgba(59, 130, 246, 0.24);
 }
 
+/* ── Chat section ── */
+.admin-chat-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 16px;
+  min-height: 620px;
+}
+
+.admin-chat-sessions,
+.admin-chat-thread {
+  background: rgba(17, 24, 39, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.admin-chat-sessions {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-chat-sessions__head {
+  padding: 14px 16px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.admin-chat-session-list {
+  display: grid;
+  gap: 0;
+  max-height: 560px;
+  overflow-y: auto;
+}
+
+.admin-chat-session-item {
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.16s ease;
+}
+
+.admin-chat-session-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.admin-chat-session-item.active {
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.admin-chat-session-item__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.admin-chat-session-item__name {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.admin-chat-session-item__unread {
+  min-width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #0b101a;
+  font-size: 0.72rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+}
+
+.admin-chat-session-item__preview {
+  font-size: 0.77rem;
+  color: rgba(255, 255, 255, 0.46);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-chat-thread {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+
+.admin-chat-thread__head {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.admin-chat-thread__head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #fff;
+}
+
+.admin-chat-thread__head p {
+  margin: 3px 0 0;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.admin-chat-thread__messages {
+  padding: 16px;
+  overflow-y: auto;
+  max-height: 440px;
+  display: grid;
+  gap: 10px;
+}
+
+.admin-chat-bubble-row {
+  display: flex;
+}
+
+.admin-chat-bubble-row.user {
+  justify-content: flex-start;
+}
+
+.admin-chat-bubble-row.admin {
+  justify-content: flex-end;
+}
+
+.admin-chat-bubble-row.bot {
+  justify-content: flex-start;
+}
+
+.admin-chat-bubble {
+  max-width: 82%;
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+}
+
+.admin-chat-bubble--user {
+  background: rgba(59, 130, 246, 0.16);
+  border-color: rgba(59, 130, 246, 0.28);
+}
+
+.admin-chat-bubble--admin {
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.admin-chat-bubble--bot {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.admin-chat-bubble__text {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.92);
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.admin-chat-bubble__meta {
+  margin-top: 6px;
+  display: flex;
+  gap: 10px;
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.46);
+}
+
+.admin-chat-reply {
+  padding: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  display: grid;
+  gap: 10px;
+}
+
+.admin-chat-reply textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 76px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 9px;
+  color: #fff;
+  padding: 10px 12px;
+  font-size: 0.86rem;
+  font-family: inherit;
+  outline: none;
+}
+
+.admin-chat-reply textarea:focus {
+  border-color: rgba(245, 158, 11, 0.45);
+}
+
+.admin-chat-empty {
+  padding: 28px 18px;
+  color: rgba(255, 255, 255, 0.34);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+/* ── Feedback section ── */
+.admin-feedback-rating {
+  color: #fbbf24;
+  letter-spacing: 0.02em;
+  font-size: 0.82rem;
+}
+
+.admin-feedback-text {
+  max-width: 420px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
 .admin-btn-primary:disabled {
   opacity: 0.65;
   cursor: not-allowed;
@@ -1552,6 +1776,10 @@
   }
   .admin-analytics-panels {
     grid-template-columns: 1fr;
+  }
+  .admin-chat-layout {
+    grid-template-columns: 1fr;
+    min-height: 0;
   }
 }
 
