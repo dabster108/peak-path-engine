@@ -283,7 +283,7 @@ function AppInner() {
 
 export default function App() {
   return (
-    <GoogleOAuthProvider clientId="387390235264-pgcq968tkl1snam558av935ksi932k1v.apps.googleusercontent.com">
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || "387390235264-pgcq968tkl1snam558av935ksi932k1v.apps.googleusercontent.com"}>
       <UserProvider>
         <CartProvider>
           <OrderProvider>
