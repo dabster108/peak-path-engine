@@ -42,6 +42,10 @@ from .serializers import (
     GoogleAuthSerializer,
 )
 
+# Utility function for consistent error responses
+def error_response(message, status=400, code="error"):
+    return Response({"detail": message, "code": code}, status=status)
+
 DEFAULT_CATEGORY_NAMES = ["Men", "Women"]
 DEFAULT_SECTION_NAMES = [
     "Jackets",
@@ -250,7 +254,7 @@ class ReviewListCreateView(APIView):
         try:
             product = Product.objects.get(pk=pk)
         except Product.DoesNotExist:
-            return Response({'error': 'Product not found.'}, status=404)
+            return error_response('Product not found.', 404, 'product_not_found')
         reviews = product.reviews.all()
         return Response(ReviewSerializer(reviews, many=True).data)
 
@@ -258,10 +262,10 @@ class ReviewListCreateView(APIView):
         try:
             product = Product.objects.get(pk=pk)
         except Product.DoesNotExist:
-            return Response({'error': 'Product not found.'}, status=404)
+            return error_response('Product not found.', 404, 'product_not_found')
 
         if Review.objects.filter(product=product, user=request.user).exists():
-            return Response({'error': 'You have already reviewed this product.'}, status=400)
+            return error_response('You have already reviewed this product.', 400, 'already_reviewed')
 
         serializer = ReviewSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -421,7 +425,7 @@ class CartItemView(APIView):
         try:
             product = Product.objects.get(pk=product_id)
         except Product.DoesNotExist:
-            return Response({'error': 'Product not found.'}, status=404)
+            return error_response('Product not found.', 404, 'product_not_found')
 
         cart, _ = Cart.objects.get_or_create(user=request.user)
         item, created = CartItem.objects.get_or_create(
@@ -441,7 +445,7 @@ class CartItemView(APIView):
             cart = Cart.objects.get(user=request.user)
             item = cart.items.get(pk=item_id)
         except (Cart.DoesNotExist, CartItem.DoesNotExist):
-            return Response({'error': 'Item not found.'}, status=404)
+            return error_response('Item not found.', 404, 'item_not_found')
 
         quantity = int(request.data.get('quantity', item.quantity))
         item.quantity = max(1, min(10, quantity))
@@ -456,7 +460,7 @@ class CartItemView(APIView):
             item = cart.items.get(pk=item_id)
             item.delete()
         except (Cart.DoesNotExist, CartItem.DoesNotExist):
-            return Response({'error': 'Item not found.'}, status=404)
+            return error_response('Item not found.', 404, 'item_not_found')
 
         serializer = CartSerializer(cart, context={'request': request})
         return Response(serializer.data)
@@ -476,7 +480,7 @@ class OrderListCreateView(APIView):
         # Checkout: create order from cart
         cart = Cart.objects.filter(user=request.user).first()
         if not cart or not cart.items.exists():
-            return Response({'error': 'Cart is empty.'}, status=400)
+            return error_response('Cart is empty.', 400, 'cart_empty')
 
         subtotal = sum(
             item.product.price * item.quantity for item in cart.items.all()
@@ -528,17 +532,17 @@ class AdminOrderUpdateView(APIView):
     def patch(self, request, pk):
         user = request.user
         if not (user.role == 'admin' or user.is_staff or user.is_superuser):
-            return Response({'error': 'Forbidden.'}, status=403)
+            return error_response('Forbidden.', 403, 'forbidden')
 
         try:
             order = Order.objects.get(pk=pk)
         except Order.DoesNotExist:
-            return Response({'error': 'Order not found.'}, status=404)
+            return error_response('Order not found.', 404, 'order_not_found')
 
         status_val = request.data.get('status')
         valid = [c[0] for c in Order.STATUS_CHOICES]
         if status_val not in valid:
-            return Response({'error': f'Invalid status. Must be one of: {valid}'}, status=400)
+            return error_response(f'Invalid status. Must be one of: {valid}', 400, 'invalid_status')
 
         order.status = status_val
         order.save()
@@ -568,10 +572,10 @@ class BlogPostDeleteView(APIView):
         try:
             post = BlogPost.objects.get(pk=pk)
         except BlogPost.DoesNotExist:
-            return Response({'error': 'Post not found.'}, status=404)
+            return error_response('Post not found.', 404, 'post_not_found')
 
         if post.user != request.user and not (request.user.is_staff or request.user.role == 'admin'):
-            return Response({'error': 'Forbidden.'}, status=403)
+            return error_response('Forbidden.', 403, 'forbidden')
 
         post.delete()
         return Response({'detail': 'Post deleted.'})
@@ -617,7 +621,7 @@ class ChatSessionView(APIView):
         """Send a message from user."""
         text = request.data.get('text', '').strip()
         if not text:
-            return Response({'error': 'Message cannot be empty.'}, status=400)
+            return error_response('Message cannot be empty.', 400, 'empty_message')
 
         session, _ = ChatSession.objects.get_or_create(user=request.user)
         message = ChatMessage.objects.create(
@@ -648,7 +652,7 @@ class AdminChatListView(APIView):
 
     def get(self, request):
         if not (request.user.is_staff or request.user.role == 'admin' or request.user.is_superuser):
-            return Response({'error': 'Forbidden.'}, status=403)
+            return error_response('Forbidden.', 403, 'forbidden')
         sessions = ChatSession.objects.all().prefetch_related('messages')
         serializer = ChatSessionSerializer(sessions, many=True)
         return Response(serializer.data)
@@ -660,16 +664,16 @@ class AdminChatReplyView(APIView):
 
     def post(self, request, session_id):
         if not (request.user.is_staff or request.user.role == 'admin' or request.user.is_superuser):
-            return Response({'error': 'Forbidden.'}, status=403)
+            return error_response('Forbidden.', 403, 'forbidden')
 
         try:
             session = ChatSession.objects.get(pk=session_id)
         except ChatSession.DoesNotExist:
-            return Response({'error': 'Session not found.'}, status=404)
+            return error_response('Session not found.', 404, 'session_not_found')
 
         text = request.data.get('text', '').strip()
         if not text:
-            return Response({'error': 'Message cannot be empty.'}, status=400)
+            return error_response('Message cannot be empty.', 400, 'empty_message')
 
         # Mark all user messages as read
         session.messages.filter(sender='user', read=False).update(read=True)

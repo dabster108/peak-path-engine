@@ -6,6 +6,7 @@ import Modal from "../components/Modal";
 import { useOrders } from "../context/OrderContext";
 import { useUser } from "../context/UserContext";
 import { setAuth } from "../App";
+import { handleApiError } from "../utils/errorHandler";
 import "./Admin.css";
 
 const emptyForm = () => ({
@@ -77,18 +78,6 @@ function getSubSectionsForSection(sectionName, allSections) {
     (s) => s.name.toLowerCase() === (sectionName || "").toLowerCase(),
   );
   return found?.sub_sections || [];
-}
-
-function getApiErrorMessage(error, fallback) {
-  const data = error?.response?.data;
-  if (typeof data === "string") return data;
-  if (data?.detail) return data.detail;
-  if (data && typeof data === "object") {
-    const first = Object.values(data)[0];
-    if (Array.isArray(first) && first.length > 0) return String(first[0]);
-    if (typeof first === "string") return first;
-  }
-  return fallback;
 }
 
 function StatCard({ icon, label, value, sub, color, delay }) {
@@ -590,9 +579,8 @@ export default function Admin() {
       closeEditModal();
       showToast("Product changes saved.");
     } catch (error) {
-      setEditError(
-        getApiErrorMessage(error, "Failed to save product changes."),
-      );
+      const errorMessage = handleApiError(error, showToast, "Admin - Save Product Changes", "Failed to save product changes.");
+      setEditError(errorMessage);
     } finally {
       setEditSaving(false);
     }
@@ -646,7 +634,8 @@ export default function Admin() {
       setShowAdd(false);
       showToast(`"${addForm.name}" added to inventory.`);
     } catch (err) {
-      setAddError(getApiErrorMessage(err, "Failed to add product."));
+      const errorMessage = handleApiError(err, showToast, "Admin - Add Product", "Failed to add product.");
+      setAddError(errorMessage);
     }
   };
 
@@ -678,10 +667,7 @@ export default function Admin() {
       });
       showToast("Profile updated successfully.");
     } catch (error) {
-      showToast(
-        getApiErrorMessage(error, "Failed to update profile."),
-        "warning",
-      );
+      handleApiError(error, showToast, "Admin - Update Profile", "Failed to update profile.");
     } finally {
       setProfileSaving(false);
     }
@@ -711,7 +697,8 @@ export default function Admin() {
       });
       showToast(res.data?.detail || "Password updated successfully.");
     } catch (error) {
-      setPasswordError(getApiErrorMessage(error, "Failed to update password."));
+      const errorMessage = handleApiError(error, showToast, "Admin - Update Password", "Failed to update password.");
+      setPasswordError(errorMessage);
     } finally {
       setPasswordSaving(false);
     }
