@@ -106,19 +106,20 @@ function StatCard({ icon, label, value, sub, color, delay }) {
   );
 }
 
+
 export default function Admin() {
   const [tab, setTab] = useState("dashboard");
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(true);
-
+  
   const [categories, setCategories] = useState([]);
   const [sections, setSections] = useState([]);
   const [badges, setBadges] = useState([]);
-
+  
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("All");
   const [filterStock, setFilterStock] = useState("All");
-
+  
   const [editingProductId, setEditingProductId] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
@@ -129,11 +130,11 @@ export default function Admin() {
     products: [],
   });
   const [originalEditProductIds, setOriginalEditProductIds] = useState([]);
-
+  
   const [showAdd, setShowAdd] = useState(false);
   const [addForm, setAddForm] = useState(emptyForm());
   const [addError, setAddError] = useState("");
-
+  
   const [adminProfile, setAdminProfile] = useState(null);
   const [profileForm, setProfileForm] = useState({
     username: "",
@@ -142,7 +143,7 @@ export default function Admin() {
     email: "",
   });
   const [profileSaving, setProfileSaving] = useState(false);
-
+  
   const [passwordForm, setPasswordForm] = useState({
     old_password: "",
     new_password: "",
@@ -150,27 +151,30 @@ export default function Admin() {
   });
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [passwordError, setPasswordError] = useState("");
-
+  
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersSearch, setUsersSearch] = useState("");
-
+  
   const [orderSearch, setOrderSearch] = useState("");
   const [orderStatusFilter, setOrderStatusFilter] = useState("All");
-
+  
   const [toast, setToast] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
-
+  
   const [adminOrders, setAdminOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
 
   const [chatSessions, setChatSessions] = useState([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [selectedChatSessionId, setSelectedChatSessionId] = useState(null);
+  useEffect(() => {
+    chatThreadBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [selectedChatSessionId, chatSessions]);
   const [adminReplyText, setAdminReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
-
+  
   const [aboutFeedbacks, setAboutFeedbacks] = useState([]);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackSearch, setFeedbackSearch] = useState("");
@@ -179,6 +183,7 @@ export default function Admin() {
   const { clearUser } = useUser();
   const navigate = useNavigate();
   const toastTimer = useRef(null);
+  const chatThreadBottomRef = useRef(null);
 
   const handleAdminLogout = () => {
     setAuth(false);
@@ -2163,6 +2168,7 @@ export default function Admin() {
                           </div>
                         </div>
                       ))}
+                      <div ref={chatThreadBottomRef}/>
                     </div>
 
                     <div className="admin-chat-reply">
