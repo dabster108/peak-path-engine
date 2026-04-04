@@ -2,8 +2,11 @@
 
 from pathlib import Path
 from datetime import timedelta
-
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -13,12 +16,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-&7@^4jid&+$a8tl@l-i5+f%0^rdj-s)_2=t5u(s^96hw!i@&un'
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-&7@^4jid&+$a8tl@l-i5+f%0^rdj-s)_2=t5u(s^96hw!i@&un')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 
 # Application definition
@@ -115,16 +118,10 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS settings
+CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173').split(',')
 
-REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
-    )
-}
-
-
-GOOGLE_CLIENT_ID = "387390235264-pgcq968tkl1snam558av935ksi932k1v.apps.googleusercontent.com"
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '387390235264-pgcq968tkl1snam558av935ksi932k1v.apps.googleusercontent.com')
 
 AUTH_USER_MODEL = "shop.CustomUser"
 
