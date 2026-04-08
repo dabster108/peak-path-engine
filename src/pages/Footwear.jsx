@@ -13,7 +13,9 @@ export default function Footwear() {
       api.get("products/"),
       api.get("sub-sections/?section=footwear"),
     ]).then(([productsRes, subsRes]) => {
-      const footwear = productsRes.data
+      // FIX: Handle paginated response — unwrap results array
+      const raw = productsRes.data.results ?? productsRes.data;
+      const footwear = raw
         .filter((p) => (p.section || "").toLowerCase() === "footwear")
         .map((p, i) => normaliseProduct(p, i));
       setProducts(footwear);

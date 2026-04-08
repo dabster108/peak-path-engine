@@ -13,7 +13,9 @@ export default function Bottles() {
       api.get("products/"),
       api.get("sub-sections/?section=bottles"),
     ]).then(([productsRes, subsRes]) => {
-      const bottles = productsRes.data
+      // FIX: Handle paginated response — unwrap results array
+      const raw = productsRes.data.results ?? productsRes.data;
+      const bottles = raw
         .filter((p) => (p.section || "").toLowerCase() === "bottles")
         .map((p, i) => normaliseProduct(p, i));
       setProducts(bottles);

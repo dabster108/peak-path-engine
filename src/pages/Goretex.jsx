@@ -17,7 +17,9 @@ export default function Goretex() {
         ["gore-tex", "goretex"].includes(s.name.toLowerCase())
       );
 
-      const goretex = productsRes.data
+      // FIX: Handle paginated response — unwrap results array
+      const raw = productsRes.data.results ?? productsRes.data;
+      const goretex = raw
         .filter((p) => ["gore-tex"].includes((p.section || "").toLowerCase()))
         .map((p, i) => normaliseProduct(p, i));
 

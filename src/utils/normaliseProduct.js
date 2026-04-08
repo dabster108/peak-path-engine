@@ -51,9 +51,11 @@ export function normaliseProduct(p, index) {
  */
 export async function fetchProductsByCategory(categoryNames, api) {
   const res = await api.get("products/");
+  // FIX: Handle paginated response — unwrap results array
+  const raw = res.data.results ?? res.data;
   const lower = categoryNames.map((c) => c.toLowerCase());
 
-  const products = res.data
+  const products = raw
     .filter((p) => lower.includes((p.category || "").toLowerCase()))
     .map((p, i) => normaliseProduct(p, i));
 
@@ -73,8 +75,10 @@ export async function fetchProductsByCategory(categoryNames, api) {
  */
 export async function fetchProductsBySection(sectionName, api) {
   const res = await api.get("products/");
+  // FIX: Handle paginated response — unwrap results array
+  const raw = res.data.results ?? res.data;
 
-  const products = res.data
+  const products = raw
     .filter((p) =>
       sectionName
         ? (p.section || "").toLowerCase() === sectionName.toLowerCase()

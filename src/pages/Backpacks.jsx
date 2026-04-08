@@ -13,7 +13,9 @@ export default function Backpacks() {
       api.get("products/"),
       api.get("sub-sections/?section=backpacks"),
     ]).then(([productsRes, subsRes]) => {
-      const backpacks = productsRes.data
+      // FIX: Handle paginated response — unwrap results array
+      const raw = productsRes.data.results ?? productsRes.data;
+      const backpacks = raw
         .filter((p) => (p.section || "").toLowerCase() === "backpacks")
         .map((p, i) => normaliseProduct(p, i));
       setProducts(backpacks);

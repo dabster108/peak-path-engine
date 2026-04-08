@@ -1,6 +1,10 @@
 # shikharOutdoor\shop\serializers.py
 from rest_framework import serializers
-from .models import AboutReview, BlogPost, Cart, CartItem, ChatMessage, ChatSession, CustomUser, Order, OrderItem, Product, ProductImage, Review, Section, Badge, Category, SubSection, UserProfile
+from .models import (
+    AboutReview, BlogPost, Cart, CartItem, ChatMessage, ChatSession,
+    CustomUser, Order, OrderItem, Product, ProductImage, Review,
+    Section, Badge, Category, SubSection, UserProfile,
+)
 import re
 from django.contrib.auth.password_validation import validate_password
 
@@ -19,6 +23,7 @@ class UserSerializer(serializers.ModelSerializer):
             "is_staff",
             "is_superuser",
         )
+
 
 class UserProfileSerializer(serializers.ModelSerializer):
     avatar = serializers.ImageField(required=False, allow_null=True)
@@ -40,6 +45,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             rep["avatar"] = instance.avatar.url if instance.avatar else None
         return rep
 
+
 class ProfileSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
@@ -53,24 +59,23 @@ class ProfileSettingsSerializer(serializers.ModelSerializer):
         return email
 
 
+# FIX: Only one ChangePasswordSerializer — uses Django's validate_password for strength checks
 class ChangePasswordSerializer(serializers.Serializer):
-    old_password = serializers.CharField(write_only=True)
-    new_password = serializers.CharField(write_only=True)
+    old_password     = serializers.CharField(write_only=True)
+    new_password     = serializers.CharField(write_only=True)
     confirm_password = serializers.CharField(write_only=True)
 
+    def validate_old_password(self, value):
+        user = self.context["request"].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("Current password is incorrect.")
+        return value
+
     def validate(self, attrs):
-        request = self.context.get("request")
-        user = getattr(request, "user", None)
-
-        if not user or not user.is_authenticated:
-            raise serializers.ValidationError({"detail": "Authentication required."})
-
-        if not user.check_password(attrs["old_password"]):
-            raise serializers.ValidationError({"old_password": "Current password is incorrect."})
-
         if attrs["new_password"] != attrs["confirm_password"]:
             raise serializers.ValidationError({"confirm_password": "New passwords do not match."})
 
+        user = self.context["request"].user
         validate_password(attrs["new_password"], user=user)
         return attrs
 
@@ -80,7 +85,8 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CustomUser
-        fields = ("username", "email", "password")
+        # username is intentionally excluded from fields since it is auto-generated from email
+        fields = ("email", "password")
 
     def validate_email(self, value):
         if CustomUser.objects.filter(email__iexact=value).exists():
@@ -88,11 +94,9 @@ class RegisterSerializer(serializers.ModelSerializer):
         return value.lower()
 
     def create(self, validated_data):
-        raw = validated_data.get("username") or validated_data["email"].split("@")[0]
-        base = re.sub(r'[^\w.@+-]', '', raw.replace(" ", "_")).strip("_") \
+        base = re.sub(r'[^\w.@+-]', '', validated_data["email"].split("@")[0].replace(" ", "_")).strip("_") \
                or validated_data["email"].split("@")[0]
 
-    
         username = base
         counter = 1
         while CustomUser.objects.filter(username=username).exists():
@@ -104,15 +108,13 @@ class RegisterSerializer(serializers.ModelSerializer):
             email=validated_data["email"],
             password=validated_data["password"],
         )
-    
+
 
 class LoginSerializer(serializers.Serializer):
-
     username = serializers.CharField()
     password = serializers.CharField()
 
     def validate(self, data):
-
         email_or_username = data["username"]
         password = data["password"]
 
@@ -134,9 +136,9 @@ class LoginSerializer(serializers.Serializer):
         return data
 
 
-
 class GoogleAuthSerializer(serializers.Serializer):
     token = serializers.CharField()
+
 
 class ProductImageSerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
@@ -209,7 +211,7 @@ class ProductSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         category_raw    = validated_data.pop('category',    None)
         section_raw     = validated_data.pop('section',     None)
-        validated_data.pop('sub_section', None)  
+        validated_data.pop('sub_section', None)
         badge_raw       = validated_data.pop('badge',       None)
 
         category_name = self._extract_name(category_raw)
@@ -228,6 +230,7 @@ class ProductSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
+
 class ReviewSerializer(serializers.ModelSerializer):
     date = serializers.SerializerMethodField()
 
@@ -238,10 +241,12 @@ class ReviewSerializer(serializers.ModelSerializer):
     def get_date(self, obj):
         return obj.created_at.strftime('%b %Y')
 
+
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = ("id", "name")
+
 
 class SubSectionSerializer(serializers.ModelSerializer):
     section = serializers.CharField(source='section.name', read_only=True)
@@ -258,11 +263,11 @@ class SectionSerializer(serializers.ModelSerializer):
         model  = Section
         fields = ('id', 'name', 'sub_sections')
 
+
 class BadgeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Badge
         fields = ("id", "name")
-
 
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):
@@ -283,36 +288,18 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         return value
 
 
-class ChangePasswordSerializer(serializers.Serializer):
-    old_password     = serializers.CharField()
-    new_password     = serializers.CharField(min_length=6)
-    confirm_password = serializers.CharField()
-
-    def validate(self, data):
-        if data["new_password"] != data["confirm_password"]:
-            raise serializers.ValidationError("New passwords do not match.")
-        return data
-
-    def validate_old_password(self, value):
-        user = self.context["request"].user
-        if not user.check_password(value):
-            raise serializers.ValidationError("Current password is incorrect.")
-        return value
-
-
 class UserListSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = ("id", "username", "first_name", "last_name", "email", "role", "is_staff", "is_superuser")
 
 
-
 class CartItemSerializer(serializers.ModelSerializer):
-    product_id   = serializers.IntegerField(source='product.id', read_only=True)
-    product_name = serializers.CharField(source='product.name', read_only=True)
+    product_id       = serializers.IntegerField(source='product.id', read_only=True)
+    product_name     = serializers.CharField(source='product.name', read_only=True)
     product_category = serializers.CharField(source='product.category.name', read_only=True)
-    price        = serializers.DecimalField(source='product.price', max_digits=10, decimal_places=2, read_only=True)
-    image        = serializers.SerializerMethodField()
+    price            = serializers.DecimalField(source='product.price', max_digits=10, decimal_places=2, read_only=True)
+    image            = serializers.SerializerMethodField()
 
     class Meta:
         model  = CartItem
@@ -342,11 +329,11 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
 
 class OrderSerializer(serializers.ModelSerializer):
-    items             = OrderItemSerializer(many=True, read_only=True)
-    status_label      = serializers.CharField(source='status', read_only=True)
-    status_index      = serializers.SerializerMethodField()
-    user_username     = serializers.CharField(source='user.username', read_only=True)
-    user_email        = serializers.CharField(source='user.email', read_only=True)
+    items         = OrderItemSerializer(many=True, read_only=True)
+    status_label  = serializers.CharField(source='status', read_only=True)
+    status_index  = serializers.SerializerMethodField()
+    user_username = serializers.CharField(source='user.username', read_only=True)
+    user_email    = serializers.CharField(source='user.email', read_only=True)
 
     ORDER_STAGES = [
         'Order Placed', 'Confirmed', 'Packed', 'Out for Delivery', 'Delivered'
@@ -365,7 +352,7 @@ class OrderSerializer(serializers.ModelSerializer):
             return self.ORDER_STAGES.index(obj.status)
         except ValueError:
             return 0
-        
+
 
 class BlogPostSerializer(serializers.ModelSerializer):
     created_at = serializers.SerializerMethodField()
@@ -452,4 +439,6 @@ class ChatSessionSerializer(serializers.ModelSerializer):
     def get_last_message(self, obj):
         last = obj.messages.last()
         return last.text[:60] if last else ""
+    
 
+    
