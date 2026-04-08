@@ -1,3 +1,4 @@
+// src\pages\Mens.jsx
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import CollectionPage from "./CollectionPage";
@@ -40,7 +41,9 @@ export default function Mens() {
   useEffect(() => {
     api.get("products/")
       .then((res) => {
-        const mens = res.data
+        // FIX: paginated response — unwrap results array
+        const raw = res.data.results ?? res.data;
+        const mens = raw
           .filter((p) =>
             ["men's", "men", "unisex"].includes((p.category || "").toLowerCase())
           )

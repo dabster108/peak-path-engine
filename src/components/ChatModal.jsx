@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+// src\components\ChatModal.jsx
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useUser } from "../context/UserContext";
 import api from "../utils/api";
 import "./ChatModal.css";
@@ -11,24 +12,27 @@ function getTime() {
 
 // ── Contact Tab ────────────────────────────────────────────
 function ContactTab({ onClose, userEmail, userName }) {
-  const [form, setForm]             = useState({ name: userName || "", email: userEmail || "", product: "", message: "" });
-  const [errors, setErrors]         = useState({});
-  const [submitted, setSubmitted]   = useState(false);
+  const [form, setForm]           = useState({ name: userName || "", email: userEmail || "", product: "", message: "" });
+  const [errors, setErrors]       = useState({});
+  const [submitted, setSubmitted] = useState(false);
   const [productOptions, setProductOptions] = useState([]);
 
-  // Fetch real sections from DB as product options
+  // FIX: unwrap paginated response — SectionListView may return { results: [...] }
   useEffect(() => {
-    api.get("sections/").then((res) => {
-      setProductOptions(res.data.map((s) => s.name));
-    }).catch(() => {
-      // Fallback if API fails
-      setProductOptions([
-        "Hiking Pants", "Down Jackets", "Goretex / Hardshell",
-        "Buffs & Neck Gaiters", "Socks", "T-Shirts", "Goggles",
-        "Trekking Poles", "Backpacks", "Equipment & Camping",
-        "Footwear", "Other / General Query",
-      ]);
-    });
+    api.get("sections/")
+      .then((res) => {
+        const data = res.data.results ?? res.data;
+        const names = Array.isArray(data) ? data.map((s) => s.name).filter(Boolean) : [];
+        setProductOptions(names);
+      })
+      .catch(() => {
+        setProductOptions([
+          "Hiking Pants", "Down Jackets", "Goretex / Hardshell",
+          "Buffs & Neck Gaiters", "Socks", "T-Shirts", "Goggles",
+          "Trekking Poles", "Backpacks", "Equipment & Camping",
+          "Footwear", "Other / General Query",
+        ]);
+      });
   }, []);
 
   useEffect(() => {
@@ -143,7 +147,7 @@ function ContactTab({ onClose, userEmail, userName }) {
 }
 
 // ── Live Chat Tab ──────────────────────────────────────────
-function LiveChatTab({ isAuthenticated }) {
+function LiveChatTab({ isAuthenticated, isVisible }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput]       = useState("");
   const [loading, setLoading]   = useState(true);
@@ -151,7 +155,9 @@ function LiveChatTab({ isAuthenticated }) {
   const bottomRef               = useRef(null);
   const pollRef                 = useRef(null);
 
-  const fetchMessages = async () => {
+  // FIX: wrap in useCallback so the stable reference can be safely used in
+  // the effect dependency array, eliminating the stale-closure bug.
+  const fetchMessages = useCallback(async () => {
     if (!isAuthenticated) return;
     try {
       const res = await api.get("chat/");
@@ -159,15 +165,22 @@ function LiveChatTab({ isAuthenticated }) {
     } catch {
       // silently fail
     } finally {
-      setLoading(false);
+      setLoading((prev) => (prev ? false : prev)); // only flip once
     }
-  };
+  }, [isAuthenticated]);
 
+  // FIX: include fetchMessages in the dependency array so the interval always
+  // holds a fresh reference. Also stop polling when the tab is not visible
+  // to avoid unnecessary requests while the user is on the Contact tab.
   useEffect(() => {
+    if (!isAuthenticated || !isVisible) return;
+
+    setLoading(true);
     fetchMessages();
+
     pollRef.current = setInterval(fetchMessages, 5000);
     return () => clearInterval(pollRef.current);
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isVisible, fetchMessages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -270,15 +283,16 @@ function LiveChatTab({ isAuthenticated }) {
 
 // ── Main Modal ─────────────────────────────────────────────
 export default function ChatModal({ isOpen, onClose }) {
-  const [tab, setTab]                   = useState("contact");
-  const { user, displayName }           = useUser();
-  const loggedIn                        = Boolean(user);
+  const [tab, setTab]         = useState("contact");
+  const { user, displayName } = useUser();
+  const loggedIn              = Boolean(user);
 
   useEffect(() => {
     document.body.classList.toggle("no-scroll", isOpen);
     return () => document.body.classList.remove("no-scroll");
   }, [isOpen]);
 
+  // FIX: reset to contact tab each time modal opens
   useEffect(() => {
     if (isOpen) setTab("contact");
   }, [isOpen]);
@@ -333,7 +347,8 @@ export default function ChatModal({ isOpen, onClose }) {
         <div className="chat-modal__body">
           {tab === "contact"
             ? <ContactTab onClose={onClose} userEmail={user?.email} userName={displayName}/>
-            : <LiveChatTab isAuthenticated={loggedIn}/>}
+            // FIX: pass isVisible so LiveChatTab only polls when the live tab is active
+            : <LiveChatTab isAuthenticated={loggedIn} isVisible={tab === "live"}/>}
         </div>
       </div>
     </div>

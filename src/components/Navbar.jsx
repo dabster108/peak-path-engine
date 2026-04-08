@@ -1,3 +1,4 @@
+// src\components\Navbar.jsx
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { isAuthenticated, setAuth } from "../App";
@@ -23,17 +24,17 @@ function getSectionRoute(sectionName) {
 }
 
 export default function Navbar() {
-  const [scrolled, setScrolled]           = useState(false);
-  const [mobileOpen, setMobileOpen]       = useState(false);
-  const [openDropdown, setOpenDropdown]   = useState(null);
+  const [scrolled, setScrolled]               = useState(false);
+  const [mobileOpen, setMobileOpen]           = useState(false);
+  const [openDropdown, setOpenDropdown]       = useState(null);
   const [mobileAccordion, setMobileAccordion] = useState(null);
-  const [searchOpen, setSearchOpen]       = useState(false);
-  const [searchQuery, setSearchQuery]     = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchOpen, setSearchOpen]           = useState(false);
+  const [searchQuery, setSearchQuery]         = useState("");
+  const [searchResults, setSearchResults]     = useState([]);
+  const [searchLoading, setSearchLoading]     = useState(false);
   const [trendingSearches, setTrendingSearches] = useState([]);
-  const [cartOpen, setCartOpen]           = useState(false);
-  const [profileOpen, setProfileOpen]     = useState(false);
+  const [cartOpen, setCartOpen]               = useState(false);
+  const [profileOpen, setProfileOpen]         = useState(false);
 
   const profileRef     = useRef(null);
   const cartRef        = useRef(null);
@@ -100,6 +101,7 @@ export default function Navbar() {
   // ── Trending searches ──────────────────────────────────────
   useEffect(() => {
     api.get("sections/").then((res) => {
+      // sections/ is not paginated so res.data is a plain array
       setTrendingSearches(res.data.slice(0, 6).map((s) => s.name));
     }).catch(() => {});
   }, []);
@@ -114,9 +116,11 @@ export default function Navbar() {
     setSearchLoading(true);
     searchDebounce.current = setTimeout(() => {
       api.get("products/").then((res) => {
+        // FIX: paginated response — unwrap results array
+        const raw = res.data.results ?? res.data;
         const q = searchQuery.toLowerCase();
         setSearchResults(
-          res.data
+          raw
             .filter((p) =>
               p.name.toLowerCase().includes(q) ||
               (p.category || "").toLowerCase().includes(q) ||
@@ -198,7 +202,7 @@ export default function Navbar() {
           {/* Logo */}
           <Link to="/" className="navbar__logo">
             <span className="logo-mark">
-              <img src="/image.png" alt="Shikhar Logo" className="logo-img" />
+              <img src="/image.png" alt="Shikhar Logo" className="logo-img"/>
             </span>
             <span className="logo-text">SHIKHAR</span>
           </Link>

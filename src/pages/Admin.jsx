@@ -115,7 +115,6 @@ export default function Admin() {
   const [editError, setEditError] = useState("");
   const [editForm, setEditForm] = useState({
     projectDescription: "",
-    subSections: [""],
     products: [],
   });
   const [originalEditProductIds, setOriginalEditProductIds] = useState([]);
@@ -158,9 +157,6 @@ export default function Admin() {
   const [chatSessions, setChatSessions] = useState([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [selectedChatSessionId, setSelectedChatSessionId] = useState(null);
-  useEffect(() => {
-    chatThreadBottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [selectedChatSessionId, chatSessions]);
   const [adminReplyText, setAdminReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
   
@@ -173,6 +169,16 @@ export default function Admin() {
   const navigate = useNavigate();
   const toastTimer = useRef(null);
   const chatThreadBottomRef = useRef(null);
+
+  // FIX: Scroll to bottom whenever messages in the selected session change,
+  // not just when the selected session ID changes.
+  const selectedChatSession =
+    chatSessions.find((s) => s.id === selectedChatSessionId) || null;
+  const selectedMessages = selectedChatSession?.messages || [];
+
+  useEffect(() => {
+    chatThreadBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [selectedChatSessionId, selectedMessages.length]);
 
   const handleAdminLogout = () => {
     setAuth(false);
@@ -287,7 +293,11 @@ export default function Admin() {
   useEffect(() => {
     api
       .get("products/")
-      .then((res) => setProducts(Array.isArray(res.data) ? res.data : []))
+      .then((res) => {
+        // Handle paginated response — unwrap results array
+        const productsData = res.data.results ?? res.data;
+        setProducts(Array.isArray(productsData) ? productsData : []);
+      })
       .catch(() => showToast("Failed to load products.", "warning"))
       .finally(() => setProductsLoading(false));
   }, []);
@@ -298,7 +308,11 @@ export default function Admin() {
     setUsersLoading(true);
     api
       .get("users/")
-      .then((res) => setUsers(res.data))
+      .then((res) => {
+        // FIX: UserListView uses StandardPagination — unwrap results array
+        const usersData = res.data.results ?? res.data;
+        setUsers(Array.isArray(usersData) ? usersData : []);
+      })
       .catch(() => showToast("Failed to load users.", "warning"))
       .finally(() => setUsersLoading(false));
   }, [tab]);
@@ -310,8 +324,11 @@ export default function Admin() {
     api
       .get("admin/orders/")
       .then((res) => {
+        // FIX: AdminOrderListView uses StandardPagination — unwrap results array
+        const ordersData = res.data.results ?? res.data;
+        const ordersList = Array.isArray(ordersData) ? ordersData : [];
         setAdminOrders(
-          res.data.map((o) => ({
+          ordersList.map((o) => ({
             id: String(o.id),
             orderNumber: o.order_number,
             statusLabel: o.status,
@@ -416,16 +433,17 @@ export default function Admin() {
     setEditSaving(false);
     setEditError("");
     setOriginalEditProductIds([]);
-    setEditForm({ projectDescription: "", subSections: [""], products: [] });
+    // FIX: removed dead `subSections` state from editForm
+    setEditForm({ projectDescription: "", products: [] });
   };
 
   const startEdit = (product) => {
     setEditingProductId(product.id);
     setEditError("");
     setOriginalEditProductIds([product.id]);
+    // FIX: removed dead `subSections` state — it was tracked but never used in saveEdit
     setEditForm({
       projectDescription: product.description || "",
-      subSections: [product.sub_section || product.section || ""],
       products: [buildEditableProduct(product)],
     });
     setIsEditModalOpen(true);
@@ -450,24 +468,6 @@ export default function Admin() {
       ...prev,
       products: prev.products.filter((p) => p.localId !== localId),
     }));
-
-  const updateEditSubSection = (index, value) =>
-    setEditForm((prev) => ({
-      ...prev,
-      subSections: prev.subSections.map((s, i) => (i === index ? value : s)),
-    }));
-
-  const addEditSubSection = () =>
-    setEditForm((prev) => ({
-      ...prev,
-      subSections: [...prev.subSections, ""],
-    }));
-
-  const removeEditSubSection = (index) =>
-    setEditForm((prev) => {
-      const next = prev.subSections.filter((_, i) => i !== index);
-      return { ...prev, subSections: next.length > 0 ? next : [""] };
-    });
 
   // ── Save edit ──────────────────────────────────────────────
   const saveEdit = async () => {
@@ -575,7 +575,10 @@ export default function Admin() {
         }
       }
 
-      setProducts((await api.get("products/")).data);
+      // Handle paginated response — unwrap results array
+      const productsRes = await api.get("products/");
+      const productsData = productsRes.data.results ?? productsRes.data;
+      setProducts(Array.isArray(productsData) ? productsData : []);
       closeEditModal();
       showToast("Product changes saved.");
     } catch (error) {
@@ -594,6 +597,16 @@ export default function Admin() {
     }
     if (!addForm.price || isNaN(Number(addForm.price))) {
       setAddError("Enter a valid price.");
+      return;
+    }
+    // FIX: validate that original price (if set) is not less than discounted price
+    if (
+      addForm.originalPrice !== "" &&
+      addForm.originalPrice !== null &&
+      !isNaN(Number(addForm.originalPrice)) &&
+      Number(addForm.price) > Number(addForm.originalPrice)
+    ) {
+      setAddError("Discounted price cannot exceed original price.");
       return;
     }
     if (!addForm.category) {
@@ -621,6 +634,10 @@ export default function Admin() {
       fd.append("section", addForm.section);
       fd.append("price", Number(addForm.price));
       fd.append("stock", Number(addForm.stock));
+      // FIX: original_price was silently dropped — now appended when present
+      if (addForm.originalPrice !== "" && addForm.originalPrice !== null) {
+        fd.append("original_price", Number(addForm.originalPrice));
+      }
       if (addForm.sub_section) fd.append("sub_section", addForm.sub_section);
       if (addForm.badge) fd.append("badge", addForm.badge);
       (addForm.imageFiles || []).forEach((f) => fd.append("images", f));
@@ -628,7 +645,10 @@ export default function Admin() {
       await api.post("add-product/", fd, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      setProducts((await api.get("products/")).data);
+      // Handle paginated response — unwrap results array
+      const productsRes = await api.get("products/");
+      const productsData = productsRes.data.results ?? productsRes.data;
+      setProducts(Array.isArray(productsData) ? productsData : []);
       setAddForm(emptyForm());
       setAddError("");
       setShowAdd(false);
@@ -752,9 +772,6 @@ export default function Admin() {
       orderStatusFilter === "All" || order.statusLabel === orderStatusFilter;
     return matchSearch && matchStatus;
   });
-
-  const selectedChatSession =
-    chatSessions.find((s) => s.id === selectedChatSessionId) || null;
 
   const filteredFeedbacks = aboutFeedbacks.filter((feedback) => {
     const q = feedbackSearch.toLowerCase().trim();
@@ -1807,7 +1824,14 @@ export default function Admin() {
                 </p>
               </div>
             </div>
-            <div className="admin-analytics-grid">
+            {(usersLoading || ordersLoading) ? (
+              <div className="admin-analytics-loading">
+                <div className="admin-loading-spinner"></div>
+                <p>Loading analytics data...</p>
+              </div>
+            ) : (
+              <>
+                <div className="admin-analytics-grid">
               <StatCard
                 delay="0ms"
                 icon={
@@ -1957,6 +1981,8 @@ export default function Admin() {
                 )}
               </div>
             </div>
+            </>
+            )}
           </div>
         )}
 
@@ -2134,7 +2160,7 @@ export default function Admin() {
                           </div>
                         </div>
                       ))}
-                      <div ref={chatThreadBottomRef}/>
+                      <div ref={chatThreadBottomRef} />
                     </div>
 
                     <div className="admin-chat-reply">

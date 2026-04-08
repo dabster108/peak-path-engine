@@ -13,7 +13,9 @@ export default function Equipment() {
       api.get("products/"),
       api.get("sub-sections/?section=equipment"),
     ]).then(([productsRes, subsRes]) => {
-      const equipment = productsRes.data
+      // FIX: Handle paginated response — unwrap results array
+      const raw = productsRes.data.results ?? productsRes.data;
+      const equipment = raw
         .filter((p) => (p.section || "").toLowerCase() === "equipment")
         .map((p, i) => normaliseProduct(p, i));
       setProducts(equipment);
