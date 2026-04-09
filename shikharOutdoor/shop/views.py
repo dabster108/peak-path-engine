@@ -693,4 +693,19 @@ class AdminChatReplyView(APIView):
 
         return Response(ChatMessageSerializer(message).data, status=201)
     
-
+class AdminChatMarkReadView(APIView):
+    """Admin: mark all user messages in a session as read."""
+    permission_classes = [IsAuthenticated]
+ 
+    def post(self, request, session_id):
+        if not (request.user.is_staff or request.user.role == 'admin' or request.user.is_superuser):
+            return error_response('Forbidden.', 403, 'forbidden')
+ 
+        try:
+            session = ChatSession.objects.get(pk=session_id)
+        except ChatSession.DoesNotExist:
+            return error_response('Session not found.', 404, 'session_not_found')
+ 
+        session.messages.filter(sender='user', read=False).update(read=True)
+        return Response({'detail': 'Messages marked as read.'})
+ 

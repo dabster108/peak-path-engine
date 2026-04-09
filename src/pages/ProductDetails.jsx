@@ -24,19 +24,19 @@ export default function ProductDetails() {
   const location     = useLocation();
   const navigate     = useNavigate();
   const { addItem }  = useCart();
-  const { user, displayName } = useUser();
+  const { user, displayName, isAdmin } = useUser();
 
   const [size, setSize]         = useState("Medium");
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded]       = useState(false);
 
-  const [reviews, setReviews]           = useState([]);
+  const [reviews, setReviews]               = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(true);
-  const [reviewsError, setReviewsError] = useState("");
-  const [hasReviewed, setHasReviewed]   = useState(false);
+  const [reviewsError, setReviewsError]     = useState("");
+  const [hasReviewed, setHasReviewed]       = useState(false);
 
-  const [reviewForm, setReviewForm]   = useState({ author: displayName || "", rating: 5, text: "" });
-  const [reviewError, setReviewError] = useState("");
+  const [reviewForm, setReviewForm]     = useState({ author: displayName || "", rating: 5, text: "" });
+  const [reviewError, setReviewError]   = useState("");
   const [reviewSaving, setReviewSaving] = useState(false);
 
   const product = useMemo(() => {
@@ -131,6 +131,93 @@ export default function ProductDetails() {
     }
   }
 
+  // ── Decide what to render in the review form panel ──────
+  function renderReviewPanel() {
+    // Not logged in
+    if (!user) {
+      return (
+        <div className="product-review-form product-review-form--gate">
+          <h3>Write a Review</h3>
+          <p style={{ color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
+            You need to be signed in to leave a review.
+          </p>
+          <button className="btn btn-primary" onClick={() => navigate("/login")}>
+            Sign In to Review
+          </button>
+        </div>
+      );
+    }
+
+    // Admin — can read but not write
+    if (isAdmin) {
+      return (
+        <div className="product-review-form product-review-form--gate">
+          <h3>Reviews</h3>
+          <p style={{ color: "var(--color-text-secondary)" }}>
+            Admin accounts cannot submit product reviews.
+          </p>
+        </div>
+      );
+    }
+
+    // Already reviewed
+    if (hasReviewed) {
+      return (
+        <div className="product-review-form">
+          <h3>Your Review</h3>
+          <p style={{ color: "var(--color-text-secondary)" }}>
+            You have already reviewed this product. Thank you!
+          </p>
+        </div>
+      );
+    }
+
+    // Regular user — show form
+    return (
+      <form className="product-review-form" onSubmit={handleReviewSubmit}>
+        <h3>Write a Review</h3>
+
+        <label>
+          Your Name
+          <input
+            type="text"
+            value={reviewForm.author}
+            onChange={(e) => setReviewForm((p) => ({ ...p, author: e.target.value }))}
+            placeholder="e.g. Rohan B."
+          />
+        </label>
+
+        <label>
+          Rating
+          <select
+            value={reviewForm.rating}
+            onChange={(e) => setReviewForm((p) => ({ ...p, rating: Number(e.target.value) }))}
+          >
+            {[5, 4, 3, 2, 1].map((v) => (
+              <option key={v} value={v}>{v} Star{v > 1 ? "s" : ""}</option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Review
+          <textarea
+            rows="4"
+            value={reviewForm.text}
+            onChange={(e) => setReviewForm((p) => ({ ...p, text: e.target.value }))}
+            placeholder="Share your experience with this product"
+          />
+        </label>
+
+        {reviewError && <p className="product-review-error">{reviewError}</p>}
+
+        <button type="submit" className="btn btn-primary" disabled={reviewSaving}>
+          {reviewSaving ? "Submitting…" : "Submit Review"}
+        </button>
+      </form>
+    );
+  }
+
   return (
     <main className="product-details-page">
       <section className="product-details-hero">
@@ -154,17 +241,16 @@ export default function ProductDetails() {
                 }}
               >
                 {primaryImage ? (
-                  <img src={primaryImage} alt={name} className="product-details-img" />
+                  <img src={primaryImage} alt={name} className="product-details-img"/>
                 ) : (
                   <svg className="product-details-mountain" viewBox="0 0 300 200" fill="none">
-                    <path d="M0 200L60 100L100 140L150 60L200 120L240 80L300 130V200H0Z" fill="rgba(255,255,255,0.08)" />
-                    <path d="M0 200L80 120L130 160L180 80L230 130L300 90V200H0Z" fill="rgba(255,255,255,0.05)" />
+                    <path d="M0 200L60 100L100 140L150 60L200 120L240 80L300 130V200H0Z" fill="rgba(255,255,255,0.08)"/>
+                    <path d="M0 200L80 120L130 160L180 80L230 130L300 90V200H0Z" fill="rgba(255,255,255,0.05)"/>
                   </svg>
                 )}
                 {badge && <span className="product-details-badge">{badge}</span>}
               </div>
 
-              {/* Thumbnail strip for multiple images */}
               {images?.length > 1 && (
                 <div className="product-details-thumbs">
                   {images.map((img) => (
@@ -185,7 +271,7 @@ export default function ProductDetails() {
 
               {averageRating && (
                 <div className="product-details-rating-row">
-                  <ReviewStars rating={Math.round(Number(averageRating))} />
+                  <ReviewStars rating={Math.round(Number(averageRating))}/>
                   <span>{averageRating} ({reviews.length} review{reviews.length !== 1 ? "s" : ""})</span>
                 </div>
               )}
@@ -210,8 +296,7 @@ export default function ProductDetails() {
                 <div className="product-details-sizes">
                   {SIZE_OPTIONS.map((option) => (
                     <button
-                      key={option}
-                      type="button"
+                      key={option} type="button"
                       className={`product-details-size${size === option ? " active" : ""}`}
                       onClick={() => setSize(option)}
                     >
@@ -226,10 +311,7 @@ export default function ProductDetails() {
                 <div className="product-details-qty-row">
                   <button type="button" onClick={decrementQty}>-</button>
                   <input
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={quantity}
+                    type="number" min="1" max="10" value={quantity}
                     onChange={(e) => setQuantity(Math.min(10, Math.max(1, Number(e.target.value) || 1)))}
                   />
                   <button type="button" onClick={incrementQty}>+</button>
@@ -251,6 +333,7 @@ export default function ProductDetails() {
         </div>
       </section>
 
+      {/* ── Reviews Section ───────────────────────────────── */}
       <section className="product-details-reviews">
         <div className="container">
           <div className="product-details-reviews-head">
@@ -262,9 +345,10 @@ export default function ProductDetails() {
           </div>
 
           <div className="product-details-reviews-layout">
+            {/* Review list — all users and admins can see all reviews */}
             <div className="product-details-review-list">
               {reviewsLoading && <p className="product-review-loading">Loading reviews…</p>}
-              {reviewsError  && <p className="product-review-error">{reviewsError}</p>}
+              {reviewsError   && <p className="product-review-error">{reviewsError}</p>}
               {!reviewsLoading && !reviewsError && reviews.length === 0 && (
                 <p className="product-review-empty">No reviews yet.</p>
               )}
@@ -274,65 +358,18 @@ export default function ProductDetails() {
                     <strong>{review.author}</strong>
                     <span>{review.date}</span>
                   </div>
-                  <ReviewStars rating={Number(review.rating || 0)} />
+                  <ReviewStars rating={Number(review.rating || 0)}/>
                   <p>{review.text}</p>
                 </article>
               ))}
             </div>
 
-            {hasReviewed ? (
-              <div className="product-review-form">
-                <h3>Your Review</h3>
-                <p style={{ color: "var(--color-text-secondary)" }}>
-                  You have already reviewed this product. Thank you!
-                </p>
-              </div>
-            ) : (
-              <form className="product-review-form" onSubmit={handleReviewSubmit}>
-                <h3>Write a Review</h3>
-
-                <label>
-                  Your Name
-                  <input
-                    type="text"
-                    value={reviewForm.author}
-                    onChange={(e) => setReviewForm((p) => ({ ...p, author: e.target.value }))}
-                    placeholder="e.g. Rohan B."
-                  />
-                </label>
-
-                <label>
-                  Rating
-                  <select
-                    value={reviewForm.rating}
-                    onChange={(e) => setReviewForm((p) => ({ ...p, rating: Number(e.target.value) }))}
-                  >
-                    {[5, 4, 3, 2, 1].map((v) => (
-                      <option key={v} value={v}>{v} Star{v > 1 ? "s" : ""}</option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  Review
-                  <textarea
-                    rows="4"
-                    value={reviewForm.text}
-                    onChange={(e) => setReviewForm((p) => ({ ...p, text: e.target.value }))}
-                    placeholder="Share your experience with this product"
-                  />
-                </label>
-
-                {reviewError && <p className="product-review-error">{reviewError}</p>}
-
-                <button type="submit" className="btn btn-primary" disabled={reviewSaving}>
-                  {reviewSaving ? "Submitting…" : "Submit Review"}
-                </button>
-              </form>
-            )}
+            {/* Right panel — controlled by role */}
+            {renderReviewPanel()}
           </div>
         </div>
       </section>
     </main>
   );
 }
+

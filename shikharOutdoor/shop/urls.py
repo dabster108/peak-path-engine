@@ -46,5 +46,6 @@ urlpatterns = [
     path("chat/",                          views.ChatSessionView.as_view()),
     path("admin/chat/",                    views.AdminChatListView.as_view()),
     path("admin/chat/<int:session_id>/",   views.AdminChatReplyView.as_view()),
+    path("admin/chat/<int:session_id>/read/", views.AdminChatMarkReadView.as_view()),
 
 ]
