@@ -23,6 +23,12 @@ const profileSections = [
     description: "Manage your email and phone number.",
   },
   {
+    key: "rewards",
+    label: "Rewards",
+    title: "Shopping Rewards",
+    description: "Track your shopping points and reward progress.",
+  },
+  {
     key: "address",
     label: "Address",
     title: "Address Details",
@@ -93,6 +99,55 @@ export default function Profile() {
   );
 
   const accountType = isAdmin ? "Admin" : "User";
+  const rewardSummary = useMemo(() => {
+    const points =
+      Number(
+        user?.shopping_points ??
+          user?.reward_points ??
+          user?.loyalty_points ??
+          1240,
+      ) || 0;
+    const nextRewardAt = 1500;
+    const progress = Math.min(100, Math.round((points / nextRewardAt) * 100));
+
+    return {
+      points,
+      tier:
+        points >= 3000
+          ? "Platinum"
+          : points >= 1500
+            ? "Gold"
+            : points >= 500
+              ? "Silver"
+              : "Starter",
+      nextRewardAt,
+      pointsToNextReward: Math.max(nextRewardAt - points, 0),
+      progress,
+    };
+  }, [user]);
+
+  const rewardsActivity = useMemo(
+    () => [
+      {
+        label: "Welcome bonus",
+        detail: "Profile rewards activated",
+        points: "+120 points",
+      },
+      {
+        label: "Order rewards",
+        detail: "Earned from your recent shopping activity",
+        points: "+80 points",
+      },
+      {
+        label: "Repeat purchase bonus",
+        detail: "Reward for returning to shop again",
+        points: "+50 points",
+      },
+    ],
+    [],
+  );
+
+  const formatPoints = (value) => new Intl.NumberFormat("en-US").format(value);
 
   // ── Validation ────────────────────────────────────────────
   const validate = (section) => {
@@ -360,6 +415,10 @@ export default function Profile() {
                 <dt>Address</dt>
                 <dd>{form.location || form.city || "Not set"}</dd>
               </div>
+              <div>
+                <dt>Rewards</dt>
+                <dd>{formatPoints(rewardSummary.points)} points</dd>
+              </div>
             </dl>
           </div>
 
@@ -388,183 +447,275 @@ export default function Profile() {
               <span>{selectedSection.description}</span>
             </div>
 
-            {/* ── Personal / Contact / Address ── */}
-            {activeSection !== "security" && (
-              <form onSubmit={handleProfileSave} noValidate>
-                {activeSection === "personal" && (
-                  <div className="profile-form-grid">
-                    <label>
-                      Full Name
-                      <input
-                        type="text"
-                        value={form.fullName}
-                        onChange={onChange("fullName")}
-                        placeholder="Your full name"
-                      />
-                      {errors.fullName && <small>{errors.fullName}</small>}
-                    </label>
+            {activeSection === "rewards" ? (
+              <section
+                className="profile-rewards-panel"
+                aria-label="Rewards summary"
+              >
+                <div className="profile-rewards-hero">
+                  <div>
+                    <span className="section-label">Rewards preview</span>
+                    <h4>Shopping points are your rewards balance.</h4>
+                    <p>
+                      This section is frontend-only for now. It shows how your
+                      shopping points will appear once reward data is connected.
+                    </p>
+                  </div>
 
-                    <label>
-                      Profile Photo URL (optional)
-                      <div className="profile-avatar-input-row">
+                  <div className="profile-rewards-balance">
+                    <span>Current balance</span>
+                    <strong>{formatPoints(rewardSummary.points)}</strong>
+                    <small>points</small>
+                  </div>
+                </div>
+
+                <div className="profile-rewards-grid">
+                  <article className="profile-rewards-card">
+                    <span>Tier</span>
+                    <strong>{rewardSummary.tier}</strong>
+                    <p>Based on your shopping points balance.</p>
+                  </article>
+
+                  <article className="profile-rewards-card">
+                    <span>Points to next reward</span>
+                    <strong>
+                      {formatPoints(rewardSummary.pointsToNextReward)}
+                    </strong>
+                    <p>
+                      Reach {formatPoints(rewardSummary.nextRewardAt)} points
+                      for the next perk.
+                    </p>
+                  </article>
+
+                  <article className="profile-rewards-card">
+                    <span>Estimated reward value</span>
+                    <strong>
+                      NPR {formatPoints(Math.round(rewardSummary.points / 10))}
+                    </strong>
+                    <p>
+                      Simple frontend estimate until backend pricing is
+                      connected.
+                    </p>
+                  </article>
+                </div>
+
+                <div className="profile-rewards-progress">
+                  <div className="profile-rewards-progress__header">
+                    <span>Reward progress</span>
+                    <strong>{rewardSummary.progress}%</strong>
+                  </div>
+                  <div
+                    className="profile-rewards-progress__bar"
+                    aria-hidden="true"
+                  >
+                    <span style={{ width: `${rewardSummary.progress}%` }} />
+                  </div>
+                  <p>
+                    Every purchase can add shopping points that will act as
+                    rewards later.
+                  </p>
+                </div>
+
+                <div className="profile-rewards-history">
+                  <div className="profile-rewards-history__header">
+                    <span>Recent reward activity</span>
+                    <small>Mock data for frontend display only</small>
+                  </div>
+
+                  <div className="profile-rewards-history__list">
+                    {rewardsActivity.map((item) => (
+                      <article
+                        key={item.label}
+                        className="profile-rewards-history__item"
+                      >
+                        <div>
+                          <strong>{item.label}</strong>
+                          <p>{item.detail}</p>
+                        </div>
+                        <span>{item.points}</span>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              </section>
+            ) : (
+              activeSection !== "security" && (
+                <form onSubmit={handleProfileSave} noValidate>
+                  {activeSection === "personal" && (
+                    <div className="profile-form-grid">
+                      <label>
+                        Full Name
                         <input
-                          type="url"
-                          value={form.avatarUrl}
-                          onChange={onChange("avatarUrl")}
-                          placeholder="https://example.com/photo.jpg"
+                          type="text"
+                          value={form.fullName}
+                          onChange={onChange("fullName")}
+                          placeholder="Your full name"
                         />
-                        <input
-                          ref={avatarInputRef}
-                          type="file"
-                          accept="image/*"
-                          className="profile-avatar-file-input"
-                          onChange={handleAvatarUpload}
-                        />
-                        <button
-                          type="button"
-                          className="btn profile-upload-btn"
-                          onClick={() => avatarInputRef.current?.click()}
-                        >
-                          Upload
-                        </button>
-                        {form.avatarUrl && (
+                        {errors.fullName && <small>{errors.fullName}</small>}
+                      </label>
+
+                      <label>
+                        Profile Photo URL (optional)
+                        <div className="profile-avatar-input-row">
+                          <input
+                            type="url"
+                            value={form.avatarUrl}
+                            onChange={onChange("avatarUrl")}
+                            placeholder="https://example.com/photo.jpg"
+                          />
+                          <input
+                            ref={avatarInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="profile-avatar-file-input"
+                            onChange={handleAvatarUpload}
+                          />
                           <button
                             type="button"
-                            className="btn profile-upload-btn profile-upload-btn--ghost"
-                            onClick={clearAvatar}
+                            className="btn profile-upload-btn"
+                            onClick={() => avatarInputRef.current?.click()}
                           >
-                            Remove
+                            Upload
                           </button>
+                          {form.avatarUrl && (
+                            <button
+                              type="button"
+                              className="btn profile-upload-btn profile-upload-btn--ghost"
+                              onClick={clearAvatar}
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                        {errors.avatarUrl && <small>{errors.avatarUrl}</small>}
+                      </label>
+
+                      <label className="profile-form-grid__full">
+                        Bio
+                        <textarea
+                          rows="4"
+                          value={form.bio}
+                          onChange={onChange("bio")}
+                          placeholder="Tell us about your favorite adventure style..."
+                        />
+                      </label>
+                    </div>
+                  )}
+
+                  {activeSection === "contact" && (
+                    <div className="profile-form-grid">
+                      <label>
+                        Email
+                        <input
+                          type="email"
+                          value={form.email}
+                          onChange={onChange("email")}
+                          placeholder="you@example.com"
+                        />
+                        {errors.email && <small>{errors.email}</small>}
+                      </label>
+
+                      <label>
+                        Phone
+                        <input
+                          type="tel"
+                          value={form.phone}
+                          onChange={onChange("phone")}
+                          placeholder="+977 98XXXXXXXX"
+                        />
+                        {errors.phone && <small>{errors.phone}</small>}
+                      </label>
+                    </div>
+                  )}
+
+                  {activeSection === "address" && (
+                    <div className="profile-form-grid">
+                      <label className="profile-form-grid__full">
+                        Address Line
+                        <input
+                          type="text"
+                          value={form.addressLine}
+                          onChange={onChange("addressLine")}
+                          placeholder="Street, house number"
+                        />
+                        {errors.addressLine && (
+                          <small>{errors.addressLine}</small>
                         )}
-                      </div>
-                      {errors.avatarUrl && <small>{errors.avatarUrl}</small>}
-                    </label>
+                      </label>
 
-                    <label className="profile-form-grid__full">
-                      Bio
-                      <textarea
-                        rows="4"
-                        value={form.bio}
-                        onChange={onChange("bio")}
-                        placeholder="Tell us about your favorite adventure style..."
-                      />
-                    </label>
-                  </div>
-                )}
+                      <label>
+                        City
+                        <input
+                          type="text"
+                          value={form.city}
+                          onChange={onChange("city")}
+                          placeholder="Kathmandu"
+                        />
+                        {errors.city && <small>{errors.city}</small>}
+                      </label>
 
-                {activeSection === "contact" && (
-                  <div className="profile-form-grid">
-                    <label>
-                      Email
-                      <input
-                        type="email"
-                        value={form.email}
-                        onChange={onChange("email")}
-                        placeholder="you@example.com"
-                      />
-                      {errors.email && <small>{errors.email}</small>}
-                    </label>
+                      <label>
+                        State / Province
+                        <input
+                          type="text"
+                          value={form.state}
+                          onChange={onChange("state")}
+                          placeholder="Bagmati"
+                        />
+                      </label>
 
-                    <label>
-                      Phone
-                      <input
-                        type="tel"
-                        value={form.phone}
-                        onChange={onChange("phone")}
-                        placeholder="+977 98XXXXXXXX"
-                      />
-                      {errors.phone && <small>{errors.phone}</small>}
-                    </label>
-                  </div>
-                )}
+                      <label>
+                        Postal Code
+                        <input
+                          type="text"
+                          value={form.postalCode}
+                          onChange={onChange("postalCode")}
+                          placeholder="44600"
+                        />
+                      </label>
 
-                {activeSection === "address" && (
-                  <div className="profile-form-grid">
-                    <label className="profile-form-grid__full">
-                      Address Line
-                      <input
-                        type="text"
-                        value={form.addressLine}
-                        onChange={onChange("addressLine")}
-                        placeholder="Street, house number"
-                      />
-                      {errors.addressLine && (
-                        <small>{errors.addressLine}</small>
-                      )}
-                    </label>
+                      <label>
+                        Country
+                        <input
+                          type="text"
+                          value={form.country}
+                          onChange={onChange("country")}
+                          placeholder="Nepal"
+                        />
+                        {errors.country && <small>{errors.country}</small>}
+                      </label>
 
-                    <label>
-                      City
-                      <input
-                        type="text"
-                        value={form.city}
-                        onChange={onChange("city")}
-                        placeholder="Kathmandu"
-                      />
-                      {errors.city && <small>{errors.city}</small>}
-                    </label>
-
-                    <label>
-                      State / Province
-                      <input
-                        type="text"
-                        value={form.state}
-                        onChange={onChange("state")}
-                        placeholder="Bagmati"
-                      />
-                    </label>
-
-                    <label>
-                      Postal Code
-                      <input
-                        type="text"
-                        value={form.postalCode}
-                        onChange={onChange("postalCode")}
-                        placeholder="44600"
-                      />
-                    </label>
-
-                    <label>
-                      Country
-                      <input
-                        type="text"
-                        value={form.country}
-                        onChange={onChange("country")}
-                        placeholder="Nepal"
-                      />
-                      {errors.country && <small>{errors.country}</small>}
-                    </label>
-
-                    <label className="profile-form-grid__full">
-                      Display Location
-                      <input
-                        type="text"
-                        value={form.location}
-                        onChange={onChange("location")}
-                        placeholder="Kathmandu, Nepal"
-                      />
-                    </label>
-                  </div>
-                )}
-
-                <div className="profile-form-actions">
-                  {savedSection === activeSection && (
-                    <p className="profile-saved">
-                      {selectedSection.title} updated.
-                    </p>
+                      <label className="profile-form-grid__full">
+                        Display Location
+                        <input
+                          type="text"
+                          value={form.location}
+                          onChange={onChange("location")}
+                          placeholder="Kathmandu, Nepal"
+                        />
+                      </label>
+                    </div>
                   )}
-                  {saveApiError && (
-                    <p className="profile-error">{saveApiError}</p>
-                  )}
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={saving}
-                  >
-                    {saving ? "Saving…" : `Save ${selectedSection.label}`}
-                  </button>
-                </div>
-              </form>
+
+                  <div className="profile-form-actions">
+                    {savedSection === activeSection && (
+                      <p className="profile-saved">
+                        {selectedSection.title} updated.
+                      </p>
+                    )}
+                    {saveApiError && (
+                      <p className="profile-error">{saveApiError}</p>
+                    )}
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      disabled={saving}
+                    >
+                      {saving ? "Saving…" : `Save ${selectedSection.label}`}
+                    </button>
+                  </div>
+                </form>
+              )
             )}
 
             {/* ── Security ── */}
