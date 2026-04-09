@@ -202,7 +202,7 @@ export default function Navbar() {
           {/* Logo */}
           <Link to="/" className="navbar__logo">
             <span className="logo-mark">
-              <img src="/image.png" alt="Shikhar Logo" className="logo-img"/>
+              <img src="/vite.svg" alt="Shikhar Logo" className="logo-img"/>
             </span>
             <span className="logo-text">SHIKHAR</span>
           </Link>
@@ -381,7 +381,7 @@ export default function Navbar() {
         <div className="mobile-drawer__header">
           <Link to="/" className="navbar__logo">
             <span className="logo-mark">
-              <img src="/image.png" alt="Shikhar Logo" className="logo-img"/>
+              <img src="/vite.svg" alt="Shikhar Logo" className="logo-img"/>
             </span>
             <span className="logo-text">SHIKHAR</span>
           </Link>

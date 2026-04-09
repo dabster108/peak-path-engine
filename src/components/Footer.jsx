@@ -67,7 +67,7 @@ export default function Footer() {
             <Link to="/" className="footer__logo">
               <span className="footer-logo-mark">
                 <img
-                  src="/image.png"
+                  src="/vite.svg"
                   alt="Shikhar Outdoor logo"
                   className="footer-logo-img"
                 />
