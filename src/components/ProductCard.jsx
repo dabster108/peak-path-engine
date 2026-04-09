@@ -1,9 +1,11 @@
 // src\components\ProductCard.jsx
 
 import { useEffect, useState } from "react";
+
 import { useNavigate } from "react-router-dom";
 import { formatNpr } from "../utils/currency";
 import { useCart } from "../context/CartContext";
+import { useUser } from "../context/UserContext";
 import { cacheProductForDetails, getProductRoute } from "../utils/productRoute";
 import "./ProductCard.css";
 
@@ -27,12 +29,13 @@ function getProductImage(product) {
 }
 
 export default function ProductCard({ product, index = 0 }) {
+  const { isAdmin } = useUser();
+  const { addItem } = useCart();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedSize, setSelectedSize] = useState("Medium");
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
   const [imgError, setImgError] = useState(false);
-  const { addItem } = useCart();
   const navigate = useNavigate();
   const { name, category, price, originalPrice, badge, gradient } = product;
 
@@ -64,6 +67,7 @@ export default function ProductCard({ product, index = 0 }) {
   }
 
   function handleAddToCart() {
+    if (isAdmin) return;
     addItem({
       id: product.id,
       name,
@@ -131,18 +135,20 @@ export default function ProductCard({ product, index = 0 }) {
             )}
           </div>
           {badge && <span className="product-card__badge">{badge}</span>}
-          <div className="product-card__overlay">
-            <button
-              type="button"
-              className="btn btn-secondary product-card__cta"
-              onClick={(event) => {
-                event.stopPropagation();
-                setIsOpen(true);
-              }}
-            >
-              Quick View
-            </button>
-          </div>
+          {!isAdmin && (
+            <div className="product-card__overlay">
+              <button
+                type="button"
+                className="btn btn-secondary product-card__cta"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setIsOpen(true);
+                }}
+              >
+                Quick View
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="product-card__info">
@@ -285,14 +291,15 @@ export default function ProductCard({ product, index = 0 }) {
                   </button>
                 </div>
               </div>
-
-              <button
-                type="button"
-                className="product-quickview__add-btn"
-                onClick={handleAddToCart}
-              >
-                Add To Cart
-              </button>
+              {!isAdmin && (
+                <button
+                  type="button"
+                  className="product-quickview__add-btn"
+                  onClick={handleAddToCart}
+                >
+                  Add To Cart
+                </button>
+              )}
               <button
                 type="button"
                 className="product-quickview__details-btn"

@@ -2,6 +2,7 @@
 import { useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useOrders } from "../context/OrderContext";
+import { useUser } from "../context/UserContext";
 import { formatNpr } from "../utils/currency";
 import { useScrollAnimations } from "../hooks/useScrollAnimations";
 import "./MyOrders.css";
@@ -29,8 +30,13 @@ function formatDeliveryDate(dateString) {
 
 export default function MyOrders() {
   useScrollAnimations();
-  const { orders, loading, fetchOrders } = useOrders();
+  const { isAdmin } = useUser();
   const navigate   = useNavigate();
+  useEffect(() => {
+  if (isAdmin) navigate("/admin", { replace: true });
+}, [isAdmin, navigate]);
+
+  const { orders, loading, fetchOrders } = useOrders();
   const location   = useLocation();
   const selectedOrderId = new URLSearchParams(location.search).get("orderId");
 

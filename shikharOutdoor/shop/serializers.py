@@ -241,6 +241,10 @@ class ReviewSerializer(serializers.ModelSerializer):
     def get_date(self, obj):
         return obj.created_at.strftime('%b %Y')
 
+    def validate_rating(self, value):
+        if not 1 <= value <= 5:
+            raise serializers.ValidationError("Rating must be between 1 and 5.")
+        return value
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
