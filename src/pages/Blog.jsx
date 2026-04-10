@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useUser } from "../context/UserContext";
 import api from "../utils/api";
 import "./Blog.css";
@@ -37,6 +38,7 @@ function countPostsInLastDays(posts, days) {
 }
 
 export default function Blog() {
+  const navigate = useNavigate();
   const { user, displayName, isAdmin } = useUser();
 
   const [posts, setPosts]                   = useState([]);
@@ -56,7 +58,7 @@ export default function Blog() {
     setForm((prev) => ({ ...prev, author: displayName || "" }));
   }, [displayName]);
 
-  // Fetch all posts
+  // Fetch all posts — blog/ is public (AllowAny GET)
   useEffect(() => {
     setLoading(true);
     setFetchError("");
@@ -93,10 +95,16 @@ export default function Blog() {
   async function handleSubmit(event) {
     event.preventDefault();
 
-    if (!form.title.trim())                            { setFormError("Please add a blog title.");              return; }
-    if (!form.author.trim())                           { setFormError("Please add your name.");                 return; }
-    if (!form.excerpt.trim())                          { setFormError("Please add a short summary.");           return; }
-    if (form.content.trim().length < 120)              { setFormError("Content must be at least 120 characters."); return; }
+    // Gate: must be logged in and not admin
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+
+    if (!form.title.trim())               { setFormError("Please add a blog title.");              return; }
+    if (!form.author.trim())              { setFormError("Please add your name.");                 return; }
+    if (!form.excerpt.trim())             { setFormError("Please add a short summary.");           return; }
+    if (form.content.trim().length < 120) { setFormError("Content must be at least 120 characters."); return; }
 
     setPublishing(true);
     try {
@@ -131,6 +139,17 @@ export default function Blog() {
     } catch {
       alert("Could not delete post. Please try again.");
     }
+  }
+
+  // FIX: a user can only delete their OWN posts.
+  // The backend checks post.user === request.user, but the serializer
+  // doesn't expose a user_id field — so we match on author name as a
+  // best-effort check. Admins can delete any post.
+  function canDelete(post) {
+    if (isAdmin) return true;
+    if (!user) return false;
+    // user posts: source === "user" and author name matches displayName
+    return post.source === "user" && post.author === displayName;
   }
 
   return (
@@ -169,72 +188,94 @@ export default function Blog() {
 
       <section className="blog-section">
         <div className="container blog-grid">
+
+          {/* ── Write form: hidden for guests and admins ── */}
           <article className="blog-publish-card">
             <h2>Write a New Blog</h2>
             <p>Use this editor to publish useful posts for your audience. Keep it practical, personal, and trail-tested.</p>
 
-            <form className="blog-form" onSubmit={handleSubmit}>
-              <div className="blog-form__row">
-                <label>
-                  Blog Title
-                  <input
-                    type="text"
-                    value={form.title}
-                    onChange={(e) => handleChange("title", e.target.value)}
-                    placeholder="Example: Rain Layering for First-Time Trekkers"
-                  />
-                </label>
+            {/* Guest gate */}
+            {!user && (
+              <div className="blog-gate">
+                <p>You need to be signed in to publish a blog post.</p>
+                <button className="btn btn-primary" onClick={() => navigate("/login")}>
+                  Sign In to Write
+                </button>
               </div>
+            )}
 
-              <div className="blog-form__row blog-form__row--two">
-                <label>
-                  Category
-                  <select value={form.category} onChange={(e) => handleChange("category", e.target.value)}>
-                    {CATEGORY_OPTIONS.map((c) => <option key={c}>{c}</option>)}
-                  </select>
-                </label>
-                <label>
-                  Author Name
-                  <input
-                    type="text"
-                    value={form.author}
-                    onChange={(e) => handleChange("author", e.target.value)}
-                    placeholder="Your name"
-                  />
-                </label>
+            {/* Admin notice */}
+            {isAdmin && (
+              <div className="blog-gate blog-gate--admin">
+                <p>Admin accounts cannot publish blog posts. Use a regular account to contribute.</p>
               </div>
+            )}
 
-              <div className="blog-form__row">
-                <label>
-                  Short Summary
-                  <textarea
-                    rows="2"
-                    value={form.excerpt}
-                    onChange={(e) => handleChange("excerpt", e.target.value)}
-                    placeholder="2-3 lines that explain why this post matters"
-                  />
-                </label>
-              </div>
+            {/* Form — only for logged-in non-admin users */}
+            {user && !isAdmin && (
+              <form className="blog-form" onSubmit={handleSubmit}>
+                <div className="blog-form__row">
+                  <label>
+                    Blog Title
+                    <input
+                      type="text"
+                      value={form.title}
+                      onChange={(e) => handleChange("title", e.target.value)}
+                      placeholder="Example: Rain Layering for First-Time Trekkers"
+                    />
+                  </label>
+                </div>
 
-              <div className="blog-form__row">
-                <label>
-                  Full Blog Content
-                  <textarea
-                    rows="6"
-                    value={form.content}
-                    onChange={(e) => handleChange("content", e.target.value)}
-                    placeholder="Write your full blog here..."
-                  />
-                </label>
-              </div>
+                <div className="blog-form__row blog-form__row--two">
+                  <label>
+                    Category
+                    <select value={form.category} onChange={(e) => handleChange("category", e.target.value)}>
+                      {CATEGORY_OPTIONS.map((c) => <option key={c}>{c}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    Author Name
+                    <input
+                      type="text"
+                      value={form.author}
+                      onChange={(e) => handleChange("author", e.target.value)}
+                      placeholder="Your name"
+                    />
+                  </label>
+                </div>
 
-              {formError       && <p className="blog-form__error">{formError}</p>}
-              {publishSuccess  && <p className="blog-form__success">{publishSuccess}</p>}
+                <div className="blog-form__row">
+                  <label>
+                    Short Summary
+                    <textarea
+                      rows="2"
+                      value={form.excerpt}
+                      onChange={(e) => handleChange("excerpt", e.target.value)}
+                      placeholder="2-3 lines that explain why this post matters"
+                    />
+                  </label>
+                </div>
 
-              <button type="submit" className="blog-form__publish" disabled={publishing}>
-                {publishing ? "Publishing…" : "Publish Blog"}
-              </button>
-            </form>
+                <div className="blog-form__row">
+                  <label>
+                    Full Blog Content
+                    <textarea
+                      rows="6"
+                      value={form.content}
+                      onChange={(e) => handleChange("content", e.target.value)}
+                      placeholder="Write your full blog here..."
+                    />
+                  </label>
+                </div>
+
+                {formError      && <p className="blog-form__error">{formError}</p>}
+                {publishSuccess && <p className="blog-form__success">{publishSuccess}</p>}
+
+                <button type="submit" className="blog-form__publish" disabled={publishing}>
+                  {publishing ? "Publishing…" : "Publish Blog"}
+                </button>
+              </form>
+            )}
           </article>
 
           <aside className="blog-guidelines">
@@ -255,7 +296,6 @@ export default function Blog() {
                 ))}
               </ul>
             </div>
-
           </aside>
         </div>
       </section>
@@ -308,8 +348,8 @@ export default function Blog() {
                     <span>{formatBlogDate(post.created_at)}</span>
                   </div>
 
-                  {/* Show delete button for own posts or admin */}
-                  {(isAdmin || (user && post.source === "user")) && (
+                  {/* FIX: only show delete for own posts (matched by author name) or admin */}
+                  {canDelete(post) && (
                     <button
                       className="blog-card__delete"
                       onClick={() => handleDelete(post.id)}

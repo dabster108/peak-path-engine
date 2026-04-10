@@ -208,7 +208,7 @@ export default function Login() {
 
           <Link to="/" className="login-logo">
             <span className="login-logo-mark">
-              <img src="/image.png" alt="Shikhar Logo" className="logo-img" />
+              <img src="/vite.svg" alt="Shikhar Logo" className="logo-img" />
             </span>
             <span className="login-logo-text">SHIKHAR</span>
           </Link>

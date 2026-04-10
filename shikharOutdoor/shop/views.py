@@ -1,5 +1,6 @@
 # shikharOutdoor\shop\views.py
 from datetime import date, timedelta
+from gettext import translation
 import random
 import json, secrets, string, urllib.request
 from urllib.error import HTTPError, URLError
@@ -18,6 +19,7 @@ from google.auth.transport import requests
 from django.conf import settings
 # FIX: use Django's timezone, not datetime.timezone — datetime.timezone has no .now()
 from django.utils import timezone
+from django.db import transaction
 
 from .models import (
     AboutReview, BlogPost, Cart, CartItem, ChatMessage, ChatSession,
@@ -75,12 +77,8 @@ BOT_REPLIES = [
 
 def generate_order_number():
     alphabet = string.ascii_uppercase + string.digits
-    for _ in range(10):
-        suffix = ''.join(secrets.choice(alphabet) for _ in range(8))
-        candidate = f"SKR-{suffix}"
-        if not Order.objects.filter(order_number=candidate).exists():
-            return candidate
-    raise RuntimeError("Could not generate a unique order number after 10 attempts.")
+    suffix = ''.join(secrets.choice(alphabet) for _ in range(8))
+    return f"SKR-{suffix}"
 
 
 # ── Simple paginator used by list views ──────────────────
@@ -145,10 +143,18 @@ class GoogleLoginView(APIView):
         if not email:
             return Response({"error": "Google did not return an email"}, status=400)
 
-        base_username = email.split("@")[0]
-        user, created = CustomUser.objects.get_or_create(email=email)
+        user, created = CustomUser.objects.get_or_create(
+            email=email,
+            defaults={}
+        )
         if created:
-            user.username   = base_username
+            base = email.split("@")[0]
+            username = base
+            counter = 1
+            while CustomUser.objects.filter(username=username).exists():
+                username = f"{base}{counter}"
+                counter += 1
+            user.username   = username
             user.first_name = user_info.get("given_name", "")
             user.last_name  = user_info.get("family_name", "")
             user.set_unusable_password()
@@ -260,11 +266,28 @@ class AddProductView(APIView):
 
 
 class ProductListView(generics.ListAPIView):
-    serializer_class  = ProductSerializer
+    serializer_class   = ProductSerializer
     permission_classes = [AllowAny]
-    queryset          = Product.objects.all()
-    pagination_class  = StandardPagination
+    pagination_class   = StandardPagination
 
+    def get_queryset(self):
+        qs = Product.objects.select_related(
+            'category', 'section', 'sub_section', 'badge'
+        ).prefetch_related('images')
+
+        if section := self.request.query_params.get('section'):
+            qs = qs.filter(section__name__iexact=section)
+        if category := self.request.query_params.get('category'):
+            qs = qs.filter(category__name__iexact=category)
+        if badge := self.request.query_params.get('badge'):
+            qs = qs.filter(badge__name__iexact=badge)
+        if q := self.request.query_params.get('q'):
+            qs = qs.filter(name__icontains=q)
+        if min_price := self.request.query_params.get('min_price'):
+            qs = qs.filter(price__gte=min_price)
+        if max_price := self.request.query_params.get('max_price'):
+            qs = qs.filter(price__lte=max_price)
+        return qs
 
 
 class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -493,55 +516,65 @@ class OrderListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        orders     = Order.objects.filter(user=request.user).order_by('-created_at')
+        orders = Order.objects.filter(user=request.user).order_by('-created_at')
         serializer = OrderSerializer(orders, many=True)
         return Response(serializer.data)
 
     def post(self, request):
-        cart = Cart.objects.filter(user=request.user).first()
-        if not cart or not cart.items.exists():
-            return error_response('Cart is empty.', 400, 'cart_empty')
+        with transaction.atomic():
+            # Lock the cart row so concurrent requests queue up
+            cart = (
+                Cart.objects
+                .select_for_update()
+                .filter(user=request.user)
+                .first()
+            )
+            if not cart or not cart.items.exists():
+                return error_response('Cart is empty.', 400, 'cart_empty')
 
-        subtotal           = sum(item.product.price * item.quantity for item in cart.items.all())
-        estimated_delivery = date.today() + timedelta(days=5)
+            subtotal = sum(
+                item.product.price * item.quantity
+                for item in cart.items.select_related('product').all()
+            )
+            estimated_delivery = date.today() + timedelta(days=5)
 
-        order = Order.objects.create(
-            user=request.user,
-            order_number=generate_order_number(),
-            status='Order Placed',
-            subtotal=subtotal,
-            estimated_delivery=estimated_delivery,
-        )
-
-        for item in cart.items.all():
-            OrderItem.objects.create(
-                order=order,
-                product=item.product,
-                name=item.product.name,
-                category=item.product.category.name if item.product.category else '',
-                price=item.product.price,
-                size=item.size,
-                quantity=item.quantity,
+            order = Order.objects.create(
+                user=request.user,
+                order_number=generate_order_number(),
+                status='Order Placed',
+                subtotal=subtotal,
+                estimated_delivery=estimated_delivery,
             )
 
-        cart.items.all().delete()
+            for item in cart.items.select_related('product__category').all():
+                OrderItem.objects.create(
+                    order=order,
+                    product=item.product,
+                    name=item.product.name,
+                    # Fix: handle null category safely
+                    category=item.product.category.name if item.product.category else '',
+                    price=item.product.price,
+                    size=item.size,
+                    quantity=item.quantity,
+                )
 
-        serializer = OrderSerializer(order)
-        return Response(serializer.data, status=201)
+            cart.items.all().delete()
+
+        return Response(OrderSerializer(order).data, status=201)
 
 
 class AdminOrderListView(generics.ListAPIView):
-    """All orders — admin only."""
-    serializer_class  = OrderSerializer
+    serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]
-    pagination_class  = StandardPagination
+    pagination_class = StandardPagination
 
     def get_queryset(self):
         user = self.request.user
         if not (user.role == 'admin' or user.is_staff or user.is_superuser):
-            return Order.objects.none()
+            
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Admin access required.")
         return Order.objects.all().order_by('-created_at')
-
 
 class AdminOrderUpdateView(APIView):
     """Update order status — admin only."""
@@ -693,4 +726,19 @@ class AdminChatReplyView(APIView):
 
         return Response(ChatMessageSerializer(message).data, status=201)
     
-
+class AdminChatMarkReadView(APIView):
+    """Admin: mark all user messages in a session as read."""
+    permission_classes = [IsAuthenticated]
+ 
+    def post(self, request, session_id):
+        if not (request.user.is_staff or request.user.role == 'admin' or request.user.is_superuser):
+            return error_response('Forbidden.', 403, 'forbidden')
+ 
+        try:
+            session = ChatSession.objects.get(pk=session_id)
+        except ChatSession.DoesNotExist:
+            return error_response('Session not found.', 404, 'session_not_found')
+ 
+        session.messages.filter(sender='user', read=False).update(read=True)
+        return Response({'detail': 'Messages marked as read.'})
+ 

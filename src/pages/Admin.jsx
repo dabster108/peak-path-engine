@@ -95,20 +95,19 @@ function StatCard({ icon, label, value, sub, color, delay }) {
   );
 }
 
-
 export default function Admin() {
   const [tab, setTab] = useState("dashboard");
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(true);
-  
+
   const [categories, setCategories] = useState([]);
   const [sections, setSections] = useState([]);
   const [badges, setBadges] = useState([]);
-  
+
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("All");
   const [filterStock, setFilterStock] = useState("All");
-  
+
   const [editingProductId, setEditingProductId] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
@@ -118,11 +117,11 @@ export default function Admin() {
     products: [],
   });
   const [originalEditProductIds, setOriginalEditProductIds] = useState([]);
-  
+
   const [showAdd, setShowAdd] = useState(false);
   const [addForm, setAddForm] = useState(emptyForm());
   const [addError, setAddError] = useState("");
-  
+
   const [adminProfile, setAdminProfile] = useState(null);
   const [profileForm, setProfileForm] = useState({
     username: "",
@@ -131,7 +130,7 @@ export default function Admin() {
     email: "",
   });
   const [profileSaving, setProfileSaving] = useState(false);
-  
+
   const [passwordForm, setPasswordForm] = useState({
     old_password: "",
     new_password: "",
@@ -139,18 +138,18 @@ export default function Admin() {
   });
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [passwordError, setPasswordError] = useState("");
-  
+
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersSearch, setUsersSearch] = useState("");
-  
+
   const [orderSearch, setOrderSearch] = useState("");
   const [orderStatusFilter, setOrderStatusFilter] = useState("All");
-  
+
   const [toast, setToast] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
-  
+
   const [adminOrders, setAdminOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
 
@@ -159,7 +158,7 @@ export default function Admin() {
   const [selectedChatSessionId, setSelectedChatSessionId] = useState(null);
   const [adminReplyText, setAdminReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
-  
+
   const [aboutFeedbacks, setAboutFeedbacks] = useState([]);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackSearch, setFeedbackSearch] = useState("");
@@ -582,7 +581,12 @@ export default function Admin() {
       closeEditModal();
       showToast("Product changes saved.");
     } catch (error) {
-      const errorMessage = handleApiError(error, showToast, "Admin - Save Product Changes", "Failed to save product changes.");
+      const errorMessage = handleApiError(
+        error,
+        showToast,
+        "Admin - Save Product Changes",
+        "Failed to save product changes.",
+      );
       setEditError(errorMessage);
     } finally {
       setEditSaving(false);
@@ -654,7 +658,12 @@ export default function Admin() {
       setShowAdd(false);
       showToast(`"${addForm.name}" added to inventory.`);
     } catch (err) {
-      const errorMessage = handleApiError(err, showToast, "Admin - Add Product", "Failed to add product.");
+      const errorMessage = handleApiError(
+        err,
+        showToast,
+        "Admin - Add Product",
+        "Failed to add product.",
+      );
       setAddError(errorMessage);
     }
   };
@@ -687,7 +696,12 @@ export default function Admin() {
       });
       showToast("Profile updated successfully.");
     } catch (error) {
-      handleApiError(error, showToast, "Admin - Update Profile", "Failed to update profile.");
+      handleApiError(
+        error,
+        showToast,
+        "Admin - Update Profile",
+        "Failed to update profile.",
+      );
     } finally {
       setProfileSaving(false);
     }
@@ -717,11 +731,27 @@ export default function Admin() {
       });
       showToast(res.data?.detail || "Password updated successfully.");
     } catch (error) {
-      const errorMessage = handleApiError(error, showToast, "Admin - Update Password", "Failed to update password.");
+      const errorMessage = handleApiError(
+        error,
+        showToast,
+        "Admin - Update Password",
+        "Failed to update password.",
+      );
       setPasswordError(errorMessage);
     } finally {
       setPasswordSaving(false);
     }
+  };
+
+  const handleSelectChatSession = async (sessionId) => {
+    setSelectedChatSessionId(sessionId);
+    setChatSessions((prev) =>
+      prev.map((s) => (s.id === sessionId ? { ...s, unread_count: 0 } : s)),
+    );
+
+    try {
+      await api.post(`admin/chat/${sessionId}/read/`);
+    } catch {}
   };
 
   // ── Orders ─────────────────────────────────────────────────
@@ -1824,7 +1854,7 @@ export default function Admin() {
                 </p>
               </div>
             </div>
-            {(usersLoading || ordersLoading) ? (
+            {usersLoading || ordersLoading ? (
               <div className="admin-analytics-loading">
                 <div className="admin-loading-spinner"></div>
                 <p>Loading analytics data...</p>
@@ -1832,156 +1862,158 @@ export default function Admin() {
             ) : (
               <>
                 <div className="admin-analytics-grid">
-              <StatCard
-                delay="0ms"
-                icon={
-                  <svg
-                    width="22"
-                    height="22"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M3 3v18h18" />
-                    <path d="M19 9 13 15l-4-4-3 3" />
-                  </svg>
-                }
-                label="Revenue"
-                value={formatNpr(totalRevenue)}
-                sub={`${recentOrders} orders in last 7 days`}
-                color="linear-gradient(135deg,#22c55e,#16a34a)"
-              />
-              <StatCard
-                delay="70ms"
-                icon={
-                  <svg
-                    width="22"
-                    height="22"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
-                    <line x1="3" y1="6" x2="21" y2="6" />
-                    <path d="M16 10a4 4 0 0 1-8 0" />
-                  </svg>
-                }
-                label="Total Orders"
-                value={totalOrdersCount}
-                sub={`${deliveredOrders} delivered`}
-                color="linear-gradient(135deg,#0ea5e9,#0284c7)"
-              />
-              <StatCard
-                delay="140ms"
-                icon={
-                  <svg
-                    width="22"
-                    height="22"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <line x1="12" y1="1" x2="12" y2="23" />
-                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                  </svg>
-                }
-                label="Avg Order Value"
-                value={formatNpr(avgOrderValue)}
-                sub="Average ticket size"
-                color="linear-gradient(135deg,#f59e0b,#d97706)"
-              />
-              <StatCard
-                delay="210ms"
-                icon={
-                  <svg
-                    width="22"
-                    height="22"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                  </svg>
-                }
-                label="Customers"
-                value={customerUsers.length}
-                sub="Non-admin accounts"
-                color="linear-gradient(135deg,#a855f7,#7e22ce)"
-              />
-            </div>
-            <div className="admin-analytics-panels">
-              <div className="admin-dash-panel">
-                <div className="admin-dash-panel__head">
-                  <span className="admin-dash-panel__dot orange" />
-                  Orders by Status
-                </div>
-                {totalOrdersCount === 0 ? (
-                  <div className="admin-dash-panel__empty">
-                    No orders available yet.
-                  </div>
-                ) : (
-                  <div className="admin-analytics-status-list">
-                    {ordersByStatus.map((entry) => (
-                      <div
-                        key={entry.status}
-                        className="admin-analytics-status-item"
+                  <StatCard
+                    delay="0ms"
+                    icon={
+                      <svg
+                        width="22"
+                        height="22"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                       >
-                        <div className="admin-analytics-status-top">
-                          <span>{entry.status}</span>
-                          <span>
-                            {entry.count} ({entry.pct}%)
-                          </span>
-                        </div>
-                        <div className="admin-analytics-progress">
-                          <div
-                            className="admin-analytics-progress__fill"
-                            style={{ width: `${entry.pct}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="admin-dash-panel">
-                <div className="admin-dash-panel__head">
-                  <span className="admin-dash-panel__dot red" />
-                  Top Ordered Products
+                        <path d="M3 3v18h18" />
+                        <path d="M19 9 13 15l-4-4-3 3" />
+                      </svg>
+                    }
+                    label="Revenue"
+                    value={formatNpr(totalRevenue)}
+                    sub={`${recentOrders} orders in last 7 days`}
+                    color="linear-gradient(135deg,#22c55e,#16a34a)"
+                  />
+                  <StatCard
+                    delay="70ms"
+                    icon={
+                      <svg
+                        width="22"
+                        height="22"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+                        <line x1="3" y1="6" x2="21" y2="6" />
+                        <path d="M16 10a4 4 0 0 1-8 0" />
+                      </svg>
+                    }
+                    label="Total Orders"
+                    value={totalOrdersCount}
+                    sub={`${deliveredOrders} delivered`}
+                    color="linear-gradient(135deg,#0ea5e9,#0284c7)"
+                  />
+                  <StatCard
+                    delay="140ms"
+                    icon={
+                      <svg
+                        width="22"
+                        height="22"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <line x1="12" y1="1" x2="12" y2="23" />
+                        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                      </svg>
+                    }
+                    label="Avg Order Value"
+                    value={formatNpr(avgOrderValue)}
+                    sub="Average ticket size"
+                    color="linear-gradient(135deg,#f59e0b,#d97706)"
+                  />
+                  <StatCard
+                    delay="210ms"
+                    icon={
+                      <svg
+                        width="22"
+                        height="22"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                        <circle cx="9" cy="7" r="4" />
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                      </svg>
+                    }
+                    label="Customers"
+                    value={customerUsers.length}
+                    sub="Non-admin accounts"
+                    color="linear-gradient(135deg,#a855f7,#7e22ce)"
+                  />
                 </div>
-                {topOrderedProducts.length === 0 ? (
-                  <div className="admin-dash-panel__empty">
-                    Place orders to view product demand trends.
+                <div className="admin-analytics-panels">
+                  <div className="admin-dash-panel">
+                    <div className="admin-dash-panel__head">
+                      <span className="admin-dash-panel__dot orange" />
+                      Orders by Status
+                    </div>
+                    {totalOrdersCount === 0 ? (
+                      <div className="admin-dash-panel__empty">
+                        No orders available yet.
+                      </div>
+                    ) : (
+                      <div className="admin-analytics-status-list">
+                        {ordersByStatus.map((entry) => (
+                          <div
+                            key={entry.status}
+                            className="admin-analytics-status-item"
+                          >
+                            <div className="admin-analytics-status-top">
+                              <span>{entry.status}</span>
+                              <span>
+                                {entry.count} ({entry.pct}%)
+                              </span>
+                            </div>
+                            <div className="admin-analytics-progress">
+                              <div
+                                className="admin-analytics-progress__fill"
+                                style={{ width: `${entry.pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <ul className="admin-dash-panel__list">
-                    {topOrderedProducts.map(([name, qty]) => (
-                      <li key={name} className="admin-dash-panel__item">
-                        <span className="admin-dash-panel__name">{name}</span>
-                        <span className="admin-dash-panel__stock">
-                          {qty} unit{qty === 1 ? "" : "s"}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-            </>
+                  <div className="admin-dash-panel">
+                    <div className="admin-dash-panel__head">
+                      <span className="admin-dash-panel__dot red" />
+                      Top Ordered Products
+                    </div>
+                    {topOrderedProducts.length === 0 ? (
+                      <div className="admin-dash-panel__empty">
+                        Place orders to view product demand trends.
+                      </div>
+                    ) : (
+                      <ul className="admin-dash-panel__list">
+                        {topOrderedProducts.map(([name, qty]) => (
+                          <li key={name} className="admin-dash-panel__item">
+                            <span className="admin-dash-panel__name">
+                              {name}
+                            </span>
+                            <span className="admin-dash-panel__stock">
+                              {qty} unit{qty === 1 ? "" : "s"}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              </>
             )}
           </div>
         )}
@@ -2104,7 +2136,7 @@ export default function Admin() {
                         key={session.id}
                         type="button"
                         className={`admin-chat-session-item${selectedChatSessionId === session.id ? " active" : ""}`}
-                        onClick={() => setSelectedChatSessionId(session.id)}
+                        onClick={() => handleSelectChatSession(session.id)}
                       >
                         <div className="admin-chat-session-item__top">
                           <span className="admin-chat-session-item__name">
@@ -2197,6 +2229,17 @@ export default function Admin() {
                                 ? prev
                                 : sorted[0].id;
                             });
+                            // Zero the badge for the session we just replied to —
+                            // the server already marked messages read but the freshly
+                            // fetched sorted list may still carry the old unread_count
+                            // if the response arrived before the DB write completed.
+                            setChatSessions((prev) =>
+                              prev.map((s) =>
+                                s.id === selectedChatSessionId
+                                  ? { ...s, unread_count: 0 }
+                                  : s,
+                              ),
+                            );
                             setAdminReplyText("");
                             showToast("Reply sent to customer.");
                           } catch {
